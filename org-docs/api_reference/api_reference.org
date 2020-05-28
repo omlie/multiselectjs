@@ -1,6 +1,14 @@
 #+SETUPFILE: ../../org/org-settings.org
 #+TITLE: {{{msjs}}} API
 
+#+OPTIONS: toc:nil
+
+#+BEGIN_HTML
+<p class="author"><b>Jaakko Järvi (<a href="mailto:jarvi@cse.tamu.edu">jarvi@cse.tamu.edu</a>), Sean Parent</b></p>
+#+END_HTML
+
+#+TOC: headlines 3
+
 * Introduction 
   :PROPERTIES:
   :header_args: :padline no :eval yes
@@ -8,29 +16,32 @@
 
 This document describes the API of the {{{msjs}}} library.  The
 document assumes understanding of the following concepts: /selection
-geometry/, /selection mapping/, /selection domain/, /active set/,
-/selection path/, /anchor/, /active end/, and /keyboard
-cursor/. Please read the {{{msjs}}} tutorial or/and the paper /One Way
-to Select Many/ if these concepts are not familiar to you.
+geometry/, /selection mapping/, /selection domain/, /active domain/,
+/selection path/, /anchor/, /active end/, /keyboard cursor/, and
+/selection storage/. Please read the {{{msjs}}} tutorial and/or the
+paper /One Way to Select Many/ if these concepts are not familiar to
+you.
 
-The library components are defined as CommonJS modules.  They are
-~multiselect.js~, ~default_geometry.js~, ~dom_geometries.js~, and
-~ordered_geometries.js~. The main module is ~multiselect.js~. The
-other modules define /selection geometry/ classes, intended to be used
-as base classes for client-defined selection geometries. The main
-module depends on (/requires/) ~default_geometry.js~, but the latter
-is still defined as separate module. This is so that modules that
-define selection geometries do not need to require ~multiselect.js~;
-requiring ~default_geometry.js~ suffices.
+The library consists of just one file: ~multiselect.js~.
+
+# components are defined as CommonJS modules.  They are
+# ~multiselect.js~, ~default_geometry.js~, ~dom_geometries.js~, and
+# ~ordered_geometries.js~. The main module is ~multiselect.js~. The
+# other modules define /selection geometry/ classes, intended to be used
+# as base classes for client-defined selection geometries. The main
+# module ~multiselect.js~ depends on (/requires/) ~default_geometry.js~,
+# but the latter is still defined as a separate module. This is so that
+# modules that define selection geometries do not need to require
+# ~multiselect.js~; requiring ~default_geometry.js~ suffices.
 
 * ~multiselect.js~
 
-The names exported by ~multiselect.js~ are:
+The ~multiselect.js~ library defines one variable: ~multiselect~, which 
+defines the following members:
 
 | ~SelectionState~                                        | [[#sec:selectionstate]]                    |
 | ~DefaultGeometry~                                       | [[#sec:defaultgeometry]]                   |
 | ~anchor~, ~activeEnd~                                   | [[#sec:path-and-selection-domain-helpers]] |
-| ~makeEmptyMap~                                          | [[#sec:path-and-selection-domain-helpers]] |
 | ~UP~, ~DOWN~, ~LEFT~, ~RIGHT~, ~NO_DIRECTION~           | [[#sec:direction-constants]]               |
 | ~modifierKeys~                                          | [[#sec:event-helpers]]                     |
 | ~NONE~, ~SHIFT~, ~CMD~, ~SHIFT_CMD~, ~OPT~, ~SHIFT_OPT~ | [[#sec:event-helpers]]                     |
@@ -46,67 +57,49 @@ current selection path, undo and redo stacks, and keyboard cursor.
 
 *** Construction
 
-The ~SelectionState~ class has one constructor:
+The ~SelectionState~ class has one constructor that takes five
+parameters. All but the first, ~geometry~, has a default value and can
+be left undefined.
 
 #+BEGIN_SRC js
-SelectionState(geometry, refresh, tracking, maxundo)
+SelectionState(geometry, refresh, tracking, maxundo, storage)
 #+END_SRC
 
 - ~geometry~ is the selection geometry. 
   This object must satisfy the requirements laid out in Section [[#sec:selection-geometry-objects]].
-- ~refresh(s)~ is a callback function that visualizes the current
-  selection state of the elements. With what kind of argument the
-  library invokes the callback depends on the value of ~tracking~:
+- ~refresh(s, c)~ is a callback function that visualizes the current
+  selection state of the elements. The first argument ~s~ is the selection state object.
+  The value of the second argument depends on the value of ~tracking~:
 
-  - if ~tracking === false~, ~s~ is a /selection mapping/: a function
-    from element indices to booleans. For all element indices ~i~,
-    ~s(i)~ is ~true~ if ~i~ is selected in ~s~, otherwise ~false~.
+  - if ~tracking === false~, ~c~ is ~undefined~.
 
-    Assuming the element indices are indices to an array named ~elements~ and
-    that the function ~visualize(e, b)~ shows the element ~e~ as selected or not,
-    depending on whether ~b~ is ~true~ or ~false~. A simple ~refresh~ implementation
-    could then be:
+  - if ~tracking === true~, ~c~ indicates the elements that were
+    changed by the issued selection command. The type of ~c~ is
+    determined by the selection storage object. By default it is a
+    built-in ~Map~ (ECMAScript 6) whose keys are the selectable
+    elements' indices and values are booleans. The map has entries for
+    exactly those elements that were changed. The value of each entry
+    gives the new selection state of the element. In other words,
+    if the element ~i~ was changed, then ~c.get(i)~ is the new value of
+    that element.
 
-    #+BEGIN_SRC js
-    function refresh(s) {
-      for (var i=0; i<elements.length; ++i) visualize(elements[i], s(i));
-    }
-    #+END_SRC
-
-  - if ~tracking === true~, ~s~ is a built-in ~Map~ (ECMAScript 6)
-    whose keys are the selectable elements' indices and values are
-    booleans. The map has entries for exactly those elements that were
-    changed since the previous time any of the ~SelectionState~
-    object's methods called ~refresh~ (or since the object's
-    construction).
-
-    With the same assumptions as above, a simple ~refresh~ implementation
-    could be:
-
-    #+BEGIN_SRC js
-    function refresh(s) {
-      s.forEach(function (value, i) { visualize(elements[i], value); });
-    }
-    #+END_SRC
+  The default value of ~refresh~ is the empty function that does nothing.
 
 - ~tracking~ controls whether /change tracking/ 
    should be used or not (the default is ~false~: no tracking)
 
 - ~maxundo~ is the maximum number of undo operations. The default
   is 10, the minimum is 1 (smaller values are ignored).
+
+- ~storage~ is the selection storage. 
+  This object must satisfy the requirements laid out in Section [[#sec:selection-storage-objects]].
+  The default value is a selection storage that uses ~Map~ to present selection domains:
+  the keys are the indices in the domain.
   
-*** Reset
-
-#+BEGIN_SRC js 
-SelectionState.reset();
-#+END_SRC
-
-- Resets the ~SelectionState~ object to the same state in which it was immediately after construction.
-
 *** Accessing the selection state of elements
 
-Access to elements' selection state is provided by three functions: ~isSelected~,
-~selected~, and ~onSelected~.
+Access to elements' selection state is provided by three functions:
+~isSelected~, ~selected~, and ~onSelected~.
 
 #+BEGIN_SRC js
 SelectionState.isSelected(i);
@@ -119,22 +112,22 @@ SelectionState.isSelected(i);
 SelectionState.selected();
 #+END_SRC
 
-- Returns the indices of the selected elements as a ~Set~ (ECMAScript 6).
+- Returns the indices of the selected elements as defined by the
+  selection storage.  By default, the return value is a ~Map~ whose
+  keys are exactly the indices of the selected elements, and values
+  are all ~true~.
 
 #+BEGIN_SRC js
 SelectionState.onSelected(vpoint);
 #+END_SRC
 
-- Returns ~true~ if ~vpoint~ is on exactly one element and that
-  element is selected. Concretely, the result is computed as
-  follows. A variable ~path~ is set to ~[]~,
-  ~geometry().extendPath(path, vpoint)~ is invoked for its effect on
-  ~path~, and then the result of ~geometry().selectionDomain(path)~ is
-  observed. If that result has exactly one element and that element is
-  selected, then ~onSelected(vpoint)~ returns ~true~, otherwise
-  ~false~.
+- This method computes a selection domain as if ~vpoint~ was
+  clicked. Let ~J~ be that selection domain. Returns the result of
+  calling ~onSelected(J)~ method of the selection storage object.  For
+  the default selection storage, returns ~true~ if ~J~ contains
+  exactly one element and that element is selected.
   
-*** Accessing selection geometry
+*** Accessing and setting selection geometry
 
 #+BEGIN_SRC js
 SelectionState.geometry();
@@ -146,8 +139,21 @@ SelectionState.geometry();
 SelectionState.setGeometry(geometry);
 #+END_SRC
 
-- Replaces the current selection geometry with ~geometry~.
-  Prior to setting the new geometry, the current active set or filter is committed.
+- Replaces the current selection geometry with ~geometry~.  Prior to
+  setting the new geometry, the current active selection domain or predicate is
+  committed.
+
+*** Commands to election storage
+
+
+#+BEGIN_SRC js
+SelectionState.modifyStorage(cmd);
+#+END_SRC
+
+- Delegates to the ~modifyStorage~ method of the selection storage.
+  The accepted values of ~cmd~ are defined by the selection storage.
+
+# FIXME: explain a bit more
 
 *** Accessing selection path and cursor
 
@@ -161,68 +167,96 @@ SelectionState.cursor();
 - These functions return a reference to the current, respectively, 
   selection path and keyboard cursor.
 
-The current selection path can be reset to the empty path.
-This function needs to be called if the locations of elements
-change and thus impact the result of the ~selectionDomain~ method.
-
-#+BEGIN_SRC js
-SelectionState.resetPath();
-#+END_SRC
-
-- Commits the current active set (whether it was constructed by one of the clicks or by 
-  a filter). Resets the current selection path to ~[]~ and keyboard cursor to ~undefined~.
-
 *** Click functions
 
-All ~click~ functions take a ~vpoint~ parameter, which is
-a selection space coordinate. The ~click~ and ~cmdClick~ are quite similar:
 
 #+BEGIN_SRC js
 SelectionState.click(vpoint);
-SelectionState.cmdClick(vpoint, selmode);
 #+END_SRC
 
-- The current active set is committed. 
-- ~click~ unselects all currently selected elements; ~cmdClick~ does not.
-- The current selection path ~_spath~ is set to ~[]~
-- ~geometry().extendPath(_spath, vpoint)~ is called.
-- If ~extendPath~ returns anything other than ~null~, 
-  the keyboard cursor is set to ~vpoint~.
-- The new selection domain is computed with the call
-  ~selectionPath(_spath, undefined)~.
+- The ~vpoint~ parameter is a point in the selection space.
+- The current active domain is committed. 
+- The currently selected elements are unselected.
+- The current selection cache is reset to ~{}~,
+  the current selection path is set to ~[]~
+  and then extended with the geometry's ~extendPath~ function.
+- The cursor is set according to ~extendPath~, or by default to the active end.
+- A new selection domain is computed with the ~selectionPath~ function.
 - The ~refresh~ callback is called (if there are no
   elements whose selection state changes, the call might
   not be made).
+
+#+BEGIN_SRC js
+SelectionState.cmdClick(vpoint, selmode);
+#+END_SRC
+
+- The ~vpoint~ parameter is a point in the selection space.
 - The ~selmode~ parameter is a boolean and it determines
   whether ~cmdClick~ should select or deselect elements. Typically
   it is ~undefined~, in which case ~cmdClick~ function selects if
   ~vpoint~ is on a selected element, and deselects if not.
+- The current active domain is committed. 
+- The current selection cache is reset to ~{}~,
+  the current selection path is set to ~[]~
+  and then extended with the geometry's ~extendPath~ function.
+- The cursor is set according to ~extendPath~, or by default to the active end.
+- A new selection domain is computed with the ~selectionPath~ function.
+- The ~refresh~ callback is called (if there are no
+  elements whose selection state changes, the call might
+  not be made).
 
 #+BEGIN_SRC js
 SelectionState.shiftClick(vpoint);
 #+END_SRC
 
-- ~geometry().extendPath(_spath, vpoint)~ is called.
+- The selection path is extended by ~vpoint~ according to ~extendPath~.
 - If ~extendPath~ returns ~null~, there is no 
-  effect (other than the possible modifying of ~_spath~).
-- Otherwise,
-  the keyboard cursor is set to the last element of 
-  (the modified) ~_spath~.
+  effect (other than the possible modifying of ~_spath~ and ~_cursor~).
+- The cursor is set according to ~extendPath~, or by default to the active end.
 - The new selection domain is computed with the call
-  ~selectionDomain(_spath, J)~, where ~J~ is the
-  current selection path.
+  ~selectionDomain(_spath, J, cache)~, where ~J~ is the
+  current active domain and ~cache~ the current cache.
 - The ~refresh~ callback is called (if there are no
   elements whose selection state changes, the call might
   not be made).
 
-The ~shiftClick~ function does not execute atomically.
-After it has has modified the selection
-path, it schedules the rest of its tasks as a separate function
-to be executed later (at timeout 0)---unless 
-such a function has already been scheduled. 
-The selection path can thus be extended (or otherwise
-modified) by ~extendPath~ calls several times in between two calls to 
-~selectionDomain()~.
+# FIXME: should avoid _spath and _cursor
+
+The ~shiftClick~ function does not execute atomically.  After it has
+has modified the selection path, it schedules the rest of its tasks as
+a separate function to be executed later (at timeout 0)---unless such
+a function has already been scheduled.  The selection path can thus be
+extended (or otherwise modified) by ~extendPath~ calls several times
+in between two calls to ~selectionDomain()~.
+
+*** Modify the selection path
+
+#+BEGIN_SRC js
+SelectionState.modifyPath(vpoint);
+#+END_SRC
+
+This function is for updating the path and cursor, for example if the
+indexed family of elements has been changed so that the points on the
+selection path or the cursor need to be adjusted. The function always
+executes a shift-click that may be pending, so that the current
+selection domain is guaranteed to be computed based on the current
+selection path.
+
+The ~modifyPath(vp)~ invokes ~extendPath~ in the same way as 
+~shiftClick~. The difference is that ~modifyPath~ does not 
+schedule a computation of a new active domain.
+
+#+BEGIN_SRC js
+SelectionState.resetPath();
+#+END_SRC
+
+This function resets the current selection path to the empty path.
+This function needs to be called if the locations of elements change
+in a way that would impact the result of the ~selectionDomain~ method.
+
+- Commits the current active domain (whether it was computed based on
+  a path or a predicate). Resets the current selection path to ~[]~
+  and keyboard cursor to ~undefined~.
 
 *** Undo and redo
 
@@ -233,14 +267,14 @@ SelectionState.undo();
 #+END_SRC
 
 - The effect of the most recent click, keyboard
-  command, or committed filter operation is undone.
+  command, or committed predicate selection operation is undone.
 - The selection path is set to ~[]~.
 - The ~refresh~ function is invoked.
 
 The ~undo~ method does not modify the keyboard cursor.
 
 #+BEGIN_SRC js
-SelectionState.undo();
+SelectionState.redo();
 #+END_SRC
 
 - The effect of the most recent call to ~undo~ is undone.
@@ -249,38 +283,40 @@ SelectionState.undo();
 
 The ~redo~ method does not modify the keyboard cursor.
 
-*** Filtering
+*** Selecting based on a predicate
 
-The ~filter~ function computes a selection domain based on a predicate
+The ~predicateSelect~ function computes a selection domain based on a predicate
 over the element indices.
 
 #+BEGIN_SRC js
-SelectionState.filter(predicate, state);
+SelectionState.predicateSelect(predicate, state);
 #+END_SRC
 
 - The selection path is set to ~[]~.
-- If ~state~ is defined and ~false~, then the filter
-  is set to deselect, otherwise to select.
-- A new active set is computed with ~geometry().filter(predicate)~.
-- If another filter is already active, and the
-  new filter and the current filter are both set to ~select~
-  or both to ~deselect~, then the 
-  current active set is replaced with the new one. Otherwise the 
-  current active set is committed before setting the new active set.
+- If ~state~ is defined and ~false~, then the method
+  deselects elements, otherwise it selects elements.
+- A new active domain is computed with ~geometry().filter(predicate)~.
+- If another predicate is already active, and the new and the current
+  predicate are both set to ~select~ or both to ~deselect~, then the
+  current active domain is replaced with the new one. Otherwise the
+  current active domain is committed before setting the new active
+  domain.
+
+# FIXME: explain somewhere what "active" predicate means
 
 #+BEGIN_SRC js
 SelectionState.commit();
 #+END_SRC
 
-- The current active set is committed, which creates an
+- The current active domain is committed, which creates an
   undoable state.
 
 *** Functions for keyboard commands
 
 The library provides three functions that select elements based on the
-current keyboard cursor position (~space~, ~cmdSpace~, and ~shiftSpace~),
-and three functions that alter the cursor position, and/or select
-elements (~arrow~, ~shiftArrow~, and ~cmdArrow~).
+current keyboard cursor position (~space~, ~cmdSpace~, and
+~shiftSpace~), and three functions that alter the cursor position,
+and/or select elements (~arrow~, ~shiftArrow~, and ~cmdArrow~).
 
 #+BEGIN_SRC js
 SelectionState.space();
@@ -288,12 +324,12 @@ SelectionState.cmdSpace();
 SelectionState.shiftSpace();
 #+END_SRC
 
-- If the cursor is not defined, these functions attempt to establish a cursor from
-  the geometry's default, using the call
+- If the cursor is not defined, these functions attempt to establish a
+  cursor from the geometry's default, using the call
   ~geometry().defaultCursor(NO_DIRECTION)~.
-- If the cursor is or becomes defined, the corresponding 
-  ~click(cursor)~, ~cmdClick(cursor)~, or
-  ~shiftClick(cursor)~ function is called; otherwise there is no effect.
+- If the cursor is or becomes defined, the corresponding
+  ~click(cursor)~, ~cmdClick(cursor)~, or ~shiftClick(cursor)~
+  function is called; otherwise there is no effect.
 - The ~cmdSpace~ and ~shiftSpace~ functions take a parameter (direction)
   that is used internally by the library; client calls to these functions
   should have no arguments.
@@ -324,7 +360,7 @@ SelectionState.cmdArrow(dir);
    :END:
 
 Typically classes that define selection geometries inherit from 
-the ~defaultGeometry~ class discussed in Section [[#sec:defaultgeometry]].
+the ~DefaultGeometry~ class discussed in Section [[#sec:defaultgeometry]].
 
 A selection geometry object must define the following methods, 
 conforming to the requirements listed below. 
@@ -347,58 +383,67 @@ m2v(mpoint)
     geometries. 
 
 #+BEGIN_SRC js
-extendPath(spath, vpoint)
+extendPath(path, vpoint, cache, cursor)
 #+END_SRC
 
-  - Extends the selection path ~spath~ with the selection space point ~vpoint~.
-  - To communicate results to the caller, ~extendPath(spath, vp)~ modifies the ~spath~ parameter.
-    If ~spath~ is not modified at all, ~extendPath(spath, vp)~ should return ~null~.
-  - The ~spath~ parameter is an array of selection state
-    points. Typically ~vpoint~ is added at the end of ~spath~, but
-    this is not a requirement: ~extendPath~ is allowed to modify
-    ~spath~ array in arbitrary ways.  For example, certain values of
-    ~vpoint~ could be interpreted as commands that remove or move
-    points in ~spath~.
-  - Hint: ~spath~ can be non-empty only when invoked from
-    ~shiftClick~.  Two consecutive calls to ~extendPath~ where ~spath~
-    is non-empty can only come from two consecutive calls to
-    ~shiftClick~.
+  - Extends ~path~, an array representing the selection path, with the
+    selection space point ~vpoint~.
+  - The ~cache~ argument is an object to which the selection geometry
+    can store data between subsequent calls to ~extendPath~ and
+    ~selectionDomain~ functions to optimize the selection domain
+    calculations.
+
+  - The results are conveyed to the caller as follows:
+
+    - Modifications to ~path~ are visible to the caller.
+    - To indicate to the caller that the path did not change in a way 
+      that would require recomputing the selection domain, return
+      ~null~ or an object ~o~ where ~o.path~ is ~null~.
+    - To completely replace the current selection path with some new
+      path array ~path2~, return an object ~o~ for which ~o.path~ is ~path2~.
+    - To indicate that the cursor should be set to some new value
+      ~cursor2~, return an object ~o~ for which ~o.cursor~ is
+      ~cursor2~. (Otherwise, cursor will be set to the last element of the
+      path.)
+    
+  - The ~extendPath~ function is allowed to change the path and cursor 
+    in arbitrary ways.
 
 #+BEGIN_SRC js
-selectionDomain(spath, J)
+selectionDomain(path, J, cache)
 #+END_SRC
 
-  - This function should compute the selection domain that ~spath~
+  - This function should compute the selection domain that ~path~
     gives rise to.
+  - The type of the selection domain object is determined by what the
+    selection storage requires. With the default selection storage,
+    the object must be a ~Map~ whose keys are the indices in the 
+    domain.
   - If ~J~ is not ~undefined~, it is the current selection domain
-    (computed by the previous call to ~selectionDomain~). The object
-    referenced to by ~J~ can be used as such, and modified and
-    returned as the result.  The purpose of making the previous
-    selection domain available is so that the selection geometry can
-    compute the new selection domain faster. For example, in a "snake"
-    geometry, the selection geometry could cache the index of the last
-    element of the selection path, so that on the next call to
-    ~selectionDomain~ it suffices to inspect points from that index
-    forward.
+    computed by the previous call to ~selectionDomain~.  The object
+    referenced to by ~J~ can be modified and returned as the result.
+    The purpose of making the previous selection domain available is
+    so that the selection geometry can compute the new selection
+    domain faster.
   - The ~selectionDomain~ function is called from ~click~, ~cmdClick~,
     ~shiftClick~, and ~onSelected~ functions. The ~J~ parameter is
     defined only when called from ~shiftClick~.
   - Two consecutive calls to ~selectionDomain~ where ~J~ is defined
     can only come from two consecutive calls to ~shiftClick~ that
-    operate on the same active set. If ~J~ is not defined, cached
-    values should be cleared.
+    operate on the same active domain. Then the also the ~cache~
+    object is the same for both of those calls, and for calls to
+    ~extendPath~ in between.
 
 #+BEGIN_SRC js
 step(dir, vpoint)
 #+END_SRC
 
   - The function should compute a new point that is one "step" to the
-    given direction from ~vpoint~. The function defines the effect of each arrow key
-    on the cursor position.
-  - The ~dir~ parameter's value is one of the
-    library's constants ~UP~, ~DOWN~, ~LEFT~, or ~RIGHT~. 
-    If movement to some direction is not supported, 
-    ~step~ should return ~vpoint~.
+    given direction from ~vpoint~. The function defines the effect of
+    each arrow key on the cursor position.
+  - The ~dir~ parameter's value is one of the library's constants
+    ~UP~, ~DOWN~, ~LEFT~, or ~RIGHT~.  If movement to some direction
+    is not supported, ~step~ should return ~vpoint~.
   - The library never calls ~step~ with ~undefined~ value for ~vpoint~.
 
 #+BEGIN_SRC js
@@ -410,21 +455,21 @@ defaultCursor(dir)
     the return value must be ~undefined~.
   - ~dir~ is one of ~UP~, ~DOWN~, ~LEFT~, or ~RIGHT~, ~NO_DIRECTION~.
     The ~NO_DIRECTION~ value indicates that ~defaultCursor~ was called
-    from one of ~space~, ~shiftSpace~, or ~cmdSpace~ functions.
-    The other four values indicate that it was called from one of the arrow functions.    
+    from one of ~space~, ~shiftSpace~, or ~cmdSpace~ functions.  The
+    other four values indicate that it was called from one of the
+    arrow functions.
 
 #+BEGIN_SRC js
 filter(pred)
 #+END_SRC
 
-  - This function should return a ~Map~ whose keys are the indices ~i~ for which ~pred(i)~ is true.
-    The value for each such index in the map should be ~true~.
+  - This function should return a selection domain consisting of those
+    indices ~i~ for which ~pred(i)~ is true.
 
 *** ~DefaultGeometry~
     :PROPERTIES:
     :CUSTOM_ID: sec:defaultgeometry
     :END:
-
 
 To help the client in defining selection geometries, {{{msjs}}} defines
 the ~DefaultGeometry~ class as follows:
@@ -432,17 +477,152 @@ the ~DefaultGeometry~ class as follows:
 #+BEGIN_SRC js
 DefaultGeometry.prototype = {
   m2v : function (mp) { return mp; },
-  extendPath : function (spath, vp) { spath.push(vp); },
-  step : function (dir, vp) { return undefined; },
+  extendPath : function (pc, vp) { pc.path.push(vp); pc.cursor = vp; },
   selectionDomain : function(spath, J) { 
-    var m = makeEmptyMap();
+    var m = new Map();
     for (var i of spath) m.set(i, true); 
     return m;
   },
+  step : function (dir, vp) { return undefined; },
   defaultCursor : function(dir) { return undefined; },
   filter : undefined
 };
 #+END_SRC
+
+** Selection storage objects
+   :PROPERTIES:
+   :CUSTOM_ID: sec:selection-storage-objects
+   :END:
+
+This section describes the required functionality of a selection
+storage object. We assume that ~storage~ is a selection storage
+representing $\textit{ops}(s_b)$, ~i~ an index to an element, $T_J$
+the type used for representing domains of primitive selection
+operations, $J$ a selection domain of type $T_J$, and ~op~ a primitive
+selection operation whose domain is represented using $T_J$.  The
+following expressions must be valid, and they must have the semantics
+as described below:
+
+#+BEGIN_SRC js
+storage.at(i)
+#+END_SRC
+  
+  - /Returns/ $\textit{ops}(s_b)(i)$.                                          
+
+#+BEGIN_SRC js
+storage.selected()
+#+END_SRC
+
+  - /Returns/ the set of indices of the selected elements, that is $\{i
+    \in I\ |\ \textit{ops}(s_b)(i)\}$, as an object of type $T_J$.
+
+#+BEGIN_SRC js
+storage.push(op, changed)
+#+END_SRC
+
+  - Adds a new primitive selection operation ~op~ to the front of the
+    op-composition.  If ~storage~ represents $\textit{ops}(s_b)$
+    before the call, after the call it represents $(\textit{op} \circ
+    \textit{ops})(s_b)$. If ~changed~ is not ~undefined~,
+    ~changed.value~ must at exit have a value that represents the set
+    of indices whose selection state changed (from ~true~ to ~false~
+    or vice versa).  If ~changed.value~ is defined when entering the
+    function, the indices it represents are considered to be the
+    indices changed by a preceding call to ~push~ or ~pop~, and the
+    joint effect is tracked. If $J_p$ are those indices and $J_c$ the
+    indices changed by the current ~push~ operation, then the
+    resulting ~changed.value~ is $J_c \setminus J_p$.  How
+    ~changed.value~ is represented is up to the selection storage.
+
+    The ~push~ method may ignore ~changed~ altogether, if ~storage~ is
+    never used in a selection state with change tracking on.
+
+#+BEGIN_SRC js
+storage.pop(changed)
+#+END_SRC
+
+  - /Precondition:/ ~storage.size() >= 1~.
+
+  - Removes a primitive selection operation from the front of the
+    op-composition. If ~storage~ represents $(\textit{op} \circ
+    \textit{ops})(s_b)$ before the call, after the the call it represents
+    $\textit{ops}(s_b)$.  The meaning and requirements for the ~changed~
+    parameter are the same as in the ~push~ function.
+
+  - /Returns/ the removed primitive selection operation.
+
+#+BEGIN_SRC js
+storage.top()
+#+END_SRC
+
+  - /Precondition:/ ~storage.size() >= 1~.
+
+  - /Returns/ a reference to the first (most recently pushed) primitive
+    selection operation.  That is, if ~storage~ represents $\textit{op}
+    \circ \textit{ops}(s_b)$, returns $\textit{op}$.
+
+#+BEGIN_SRC js
+storage.top2()
+#+END_SRC
+  
+  - /Precondition:/ ~storage.size() >= 2~.
+  
+  - /Returns/ a reference to the second (second most recently pushed)
+    primitive selection operation.  That is, if ~storage~ represents
+    $\textit{op}_a \circ \textit{op}_b \circ \textit{ops}(s_b)$, returns
+    $\textit{op}_b$.
+
+#+BEGIN_SRC js
+storage.size()
+#+END_SRC
+
+  - /Returns/ the number of primitive selection operations in the
+    composition represented by $\textit{ops}$. (If $\textit{ops}$ is
+    empty, all of the selection state is represented in the base
+    selection mapping $s_b$ portion of $\textit{ops}(s_b)$.)
+
+#+BEGIN_SRC js
+storage.bake()
+#+END_SRC
+
+  - Removes one primitive selection operation (the least recently
+    pushed), applies it to the base selection mapping, and makes the
+    result the new base. That is, if ~storage~ represents
+    $(\textit{ops} \circ \textit{op})(s_b)$, it is modified to represent
+    $\textit{ops}(s'_b)$, where $s'_b = \textit{op}(s_b))$. The function
+    has no effect when ~storage.size() == 0~.
+
+#+BEGIN_SRC js
+storage.onSelected(J)
+#+END_SRC
+
+  - /Returns/ ~true~ if the selection domain ~J~ is considered to 
+    indicate a selected element, ~false~ otherwise.
+    A typical implementation would return ~storage.at(i)~ if
+    ~i~ is the only element in ~J~, otherwise ~false~.
+
+#+BEGIN_SRC js
+storage.modifyStorage(cmd)
+#+END_SRC
+
+  - The ~cmd~ parameter is a /command/ that indicates how ~storage~
+    should be modified.  What commands are accepted and what their
+    effects are is defined by the client.  Example functionality to
+    provide through this method include reacting to removing indices,
+    adding indices, and reordering indices (if they are stored in a
+    data structure where ordering matters).
+
+#+BEGIN_SRC js
+storage.equalDomains(J1, J2)
+#+END_SRC
+
+  - /Returns/ ~true~ if ~J1~ and ~J2~ are equivalent sets of indices.
+
+#+BEGIN_SRC js
+storage.isEmpty(J)
+#+END_SRC
+
+  - /Returns/ ~true~ if ~J~ is an empty set of indices.
 
 
 ** Helper definitions
@@ -463,17 +643,8 @@ function anchor(path)
 function activeEnd(path)
 #+END_SRC  
 
-  - The ~activeEnd~ function returns the last element
-    of the ~path~ array, or ~undefined~ if ~path~ is empty.
-
-#+BEGIN_SRC js
-function makeEmptyMap()
-#+END_SRC
-
-  - The ~selectionDomain(path, J)~ method in the selection geometry 
-    classes may need to construct a new selection domain.
-    The ~makeEmptyMap~ function constructs the kind of 
-    object (a built-in ~Map~) that the library expects.
+- The ~activeEnd~ function returns the last element
+  of the ~path~ array, or ~undefined~ if ~path~ is empty.
 
 *** Constants for arrow key directions
     :PROPERTIES:
@@ -511,12 +682,10 @@ during a shift-click or a keypress is a little tricky.
 modifierKeys(event)
 #+END_SRC
 
-The ~event~ is assumed to be JavaScript's 
-~KeyboardEvent~ or ~MouseEvent~.
-The table below shows how different key combinations 
-are mapped to the result. The first matching combination
-is selected (so that, e.g., /shift+cmd+opt/ is interpreted
-as /shift+cmd/). 
+The ~event~ is assumed to be JavaScript's ~KeyboardEvent~ or
+~MouseEvent~.  The table below shows how different key combinations
+are mapped to the result. The first matching combination is selected
+(so that, e.g., /shift+cmd+opt/ is interpreted as /shift+cmd/).
 
 |---------------+--------------|
 | Modifiers     | Return value |
@@ -529,15 +698,11 @@ as /shift+cmd/).
 | anything else | ~NONE~       |
 |---------------+--------------|
 
-The /cmd/ modifier in OSX corresponds to the /ctrl/ modifier
-in Windows/Linux, and the /opt/ modifier corresponds to 
-/alt/.
+The /cmd/ modifier in OS X corresponds to the /ctrl/ modifier in
+Windows/Linux, and the /opt/ modifier corresponds to /alt/.
 
 The constants ~NONE~, ~SHIFT~, ~CMD~, ~SHIFT_CMD~, ~OPT~, and
 ~SHIFT_OPT~ are part of the public API of the library.
-
-
-
 
 * File local variables                                     :ARCHIVE:noexport:
   

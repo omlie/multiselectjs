@@ -1,11 +1,11 @@
 ;; The load-path setting is because org-mode's html export needs htmlize.el
 ;; If this is not an appropriate path, you can set the EMACSLOADPATH environment variable
-(setq load-path (cons "~/elisp/org-mode/lisp"
-                      (cons "~/elisp/org-mode/contrib/lisp" load-path)))
+;; (setq load-path (cons "~/elisp/org-mode/lisp"
+;;                       (cons "~/elisp/org-mode/contrib/lisp" load-path)))
+
+(package-initialize) ;; this takes care of htmlize in my case
 
 (require 'org)
-;; (require 'ox-html)
-;; (require 'ox-latex)
 
 ;; building the tutorial generates some figures via latex and tikz
 (setq org-latex-to-pdf-process (list "latexmk -pdf %f"))

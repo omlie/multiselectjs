@@ -1,0 +1,791 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<!-- 2019-08-30 Fri 15:34 -->
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Inversion point encoded binary arrays &#x2014; <code>ipe.org</code></title>
+<meta name="generator" content="Org mode" />
+<meta name="author" content="Jaakko Järvi Jaakko Järvi" />
+<style type="text/css">
+ <!--/*--><![CDATA[/*><!--*/
+  .title  { text-align: center;
+             margin-bottom: .2em; }
+  .subtitle { text-align: center;
+              font-size: medium;
+              font-weight: bold;
+              margin-top:0; }
+  .todo   { font-family: monospace; color: red; }
+  .done   { font-family: monospace; color: green; }
+  .priority { font-family: monospace; color: orange; }
+  .tag    { background-color: #eee; font-family: monospace;
+            padding: 2px; font-size: 80%; font-weight: normal; }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .org-right  { margin-left: auto; margin-right: 0px;  text-align: right; }
+  .org-left   { margin-left: 0px;  margin-right: auto; text-align: left; }
+  .org-center { margin-left: auto; margin-right: auto; text-align: center; }
+  .underline { text-decoration: underline; }
+  #postamble p, #preamble p { font-size: 90%; margin: .2em; }
+  p.verse { margin-left: 3%; }
+  pre {
+    border: 1px solid #ccc;
+    box-shadow: 3px 3px 3px #eee;
+    padding: 8pt;
+    font-family: monospace;
+    overflow: auto;
+    margin: 1.2em;
+  }
+  pre.src {
+    position: relative;
+    overflow: visible;
+    padding-top: 1.2em;
+  }
+  pre.src:before {
+    display: none;
+    position: absolute;
+    background-color: white;
+    top: -10px;
+    right: 10px;
+    padding: 3px;
+    border: 1px solid black;
+  }
+  pre.src:hover:before { display: inline;}
+  /* Languages per Org manual */
+  pre.src-asymptote:before { content: 'Asymptote'; }
+  pre.src-awk:before { content: 'Awk'; }
+  pre.src-C:before { content: 'C'; }
+  /* pre.src-C++ doesn't work in CSS */
+  pre.src-clojure:before { content: 'Clojure'; }
+  pre.src-css:before { content: 'CSS'; }
+  pre.src-D:before { content: 'D'; }
+  pre.src-ditaa:before { content: 'ditaa'; }
+  pre.src-dot:before { content: 'Graphviz'; }
+  pre.src-calc:before { content: 'Emacs Calc'; }
+  pre.src-emacs-lisp:before { content: 'Emacs Lisp'; }
+  pre.src-fortran:before { content: 'Fortran'; }
+  pre.src-gnuplot:before { content: 'gnuplot'; }
+  pre.src-haskell:before { content: 'Haskell'; }
+  pre.src-hledger:before { content: 'hledger'; }
+  pre.src-java:before { content: 'Java'; }
+  pre.src-js:before { content: 'Javascript'; }
+  pre.src-latex:before { content: 'LaTeX'; }
+  pre.src-ledger:before { content: 'Ledger'; }
+  pre.src-lisp:before { content: 'Lisp'; }
+  pre.src-lilypond:before { content: 'Lilypond'; }
+  pre.src-lua:before { content: 'Lua'; }
+  pre.src-matlab:before { content: 'MATLAB'; }
+  pre.src-mscgen:before { content: 'Mscgen'; }
+  pre.src-ocaml:before { content: 'Objective Caml'; }
+  pre.src-octave:before { content: 'Octave'; }
+  pre.src-org:before { content: 'Org mode'; }
+  pre.src-oz:before { content: 'OZ'; }
+  pre.src-plantuml:before { content: 'Plantuml'; }
+  pre.src-processing:before { content: 'Processing.js'; }
+  pre.src-python:before { content: 'Python'; }
+  pre.src-R:before { content: 'R'; }
+  pre.src-ruby:before { content: 'Ruby'; }
+  pre.src-sass:before { content: 'Sass'; }
+  pre.src-scheme:before { content: 'Scheme'; }
+  pre.src-screen:before { content: 'Gnu Screen'; }
+  pre.src-sed:before { content: 'Sed'; }
+  pre.src-sh:before { content: 'shell'; }
+  pre.src-sql:before { content: 'SQL'; }
+  pre.src-sqlite:before { content: 'SQLite'; }
+  /* additional languages in org.el's org-babel-load-languages alist */
+  pre.src-forth:before { content: 'Forth'; }
+  pre.src-io:before { content: 'IO'; }
+  pre.src-J:before { content: 'J'; }
+  pre.src-makefile:before { content: 'Makefile'; }
+  pre.src-maxima:before { content: 'Maxima'; }
+  pre.src-perl:before { content: 'Perl'; }
+  pre.src-picolisp:before { content: 'Pico Lisp'; }
+  pre.src-scala:before { content: 'Scala'; }
+  pre.src-shell:before { content: 'Shell Script'; }
+  pre.src-ebnf2ps:before { content: 'ebfn2ps'; }
+  /* additional language identifiers per "defun org-babel-execute"
+       in ob-*.el */
+  pre.src-cpp:before  { content: 'C++'; }
+  pre.src-abc:before  { content: 'ABC'; }
+  pre.src-coq:before  { content: 'Coq'; }
+  pre.src-groovy:before  { content: 'Groovy'; }
+  /* additional language identifiers from org-babel-shell-names in
+     ob-shell.el: ob-shell is the only babel language using a lambda to put
+     the execution function name together. */
+  pre.src-bash:before  { content: 'bash'; }
+  pre.src-csh:before  { content: 'csh'; }
+  pre.src-ash:before  { content: 'ash'; }
+  pre.src-dash:before  { content: 'dash'; }
+  pre.src-ksh:before  { content: 'ksh'; }
+  pre.src-mksh:before  { content: 'mksh'; }
+  pre.src-posh:before  { content: 'posh'; }
+  /* Additional Emacs modes also supported by the LaTeX listings package */
+  pre.src-ada:before { content: 'Ada'; }
+  pre.src-asm:before { content: 'Assembler'; }
+  pre.src-caml:before { content: 'Caml'; }
+  pre.src-delphi:before { content: 'Delphi'; }
+  pre.src-html:before { content: 'HTML'; }
+  pre.src-idl:before { content: 'IDL'; }
+  pre.src-mercury:before { content: 'Mercury'; }
+  pre.src-metapost:before { content: 'MetaPost'; }
+  pre.src-modula-2:before { content: 'Modula-2'; }
+  pre.src-pascal:before { content: 'Pascal'; }
+  pre.src-ps:before { content: 'PostScript'; }
+  pre.src-prolog:before { content: 'Prolog'; }
+  pre.src-simula:before { content: 'Simula'; }
+  pre.src-tcl:before { content: 'tcl'; }
+  pre.src-tex:before { content: 'TeX'; }
+  pre.src-plain-tex:before { content: 'Plain TeX'; }
+  pre.src-verilog:before { content: 'Verilog'; }
+  pre.src-vhdl:before { content: 'VHDL'; }
+  pre.src-xml:before { content: 'XML'; }
+  pre.src-nxml:before { content: 'XML'; }
+  /* add a generic configuration mode; LaTeX export needs an additional
+     (add-to-list 'org-latex-listings-langs '(conf " ")) in .emacs */
+  pre.src-conf:before { content: 'Configuration File'; }
+
+  table { border-collapse:collapse; }
+  caption.t-above { caption-side: top; }
+  caption.t-bottom { caption-side: bottom; }
+  td, th { vertical-align:top;  }
+  th.org-right  { text-align: center;  }
+  th.org-left   { text-align: center;   }
+  th.org-center { text-align: center; }
+  td.org-right  { text-align: right;  }
+  td.org-left   { text-align: left;   }
+  td.org-center { text-align: center; }
+  dt { font-weight: bold; }
+  .footpara { display: inline; }
+  .footdef  { margin-bottom: 1em; }
+  .figure { padding: 1em; }
+  .figure p { text-align: center; }
+  .inlinetask {
+    padding: 10px;
+    border: 2px solid gray;
+    margin: 10px;
+    background: #ffffcc;
+  }
+  #org-div-home-and-up
+   { text-align: right; font-size: 70%; white-space: nowrap; }
+  textarea { overflow-x: auto; }
+  .linenr { font-size: smaller }
+  .code-highlighted { background-color: #ffff00; }
+  .org-info-js_info-navigation { border-style: none; }
+  #org-info-js_console-label
+    { font-size: 10px; font-weight: bold; white-space: nowrap; }
+  .org-info-js_search-highlight
+    { background-color: #ffff00; color: #000000; font-weight: bold; }
+  .org-svg { width: 90%; }
+  /*]]>*/-->
+</style>
+<style>body { font-family: Arial, Verdana, Helvetica, sans-serif; }</style>
+<style>.org-src-name { font-weight: normal; text-decoration: overline underline;  font-family: monospace; margin-top: 1cm; }</style>
+<script type="text/javascript">
+/*
+@licstart  The following is the entire license notice for the
+JavaScript code in this tag.
+
+Copyright (C) 2012-2018 Free Software Foundation, Inc.
+
+The JavaScript code in this tag is free software: you can
+redistribute it and/or modify it under the terms of the GNU
+General Public License (GNU GPL) as published by the Free Software
+Foundation, either version 3 of the License, or (at your option)
+any later version.  The code is distributed WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU GPL for more details.
+
+As additional permission under GNU GPL version 3 section 7, you
+may distribute non-source (e.g., minimized or compacted) forms of
+that code without the copy of the GNU GPL normally required by
+section 4, provided you include this license notice and a URL
+through which recipients can access the Corresponding Source.
+
+
+@licend  The above is the entire license notice
+for the JavaScript code in this tag.
+*/
+<!--/*--><![CDATA[/*><!--*/
+ function CodeHighlightOn(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(null != target) {
+     elem.cacheClassElem = elem.className;
+     elem.cacheClassTarget = target.className;
+     target.className = "code-highlighted";
+     elem.className   = "code-highlighted";
+   }
+ }
+ function CodeHighlightOff(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(elem.cacheClassElem)
+     elem.className = elem.cacheClassElem;
+   if(elem.cacheClassTarget)
+     target.className = elem.cacheClassTarget;
+ }
+/*]]>*///-->
+</script>
+<script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        displayAlign: "center",
+        displayIndent: "0em",
+
+        "HTML-CSS": { scale: 100,
+                        linebreaks: { automatic: "false" },
+                        webFont: "TeX"
+                       },
+        SVG: {scale: 100,
+              linebreaks: { automatic: "false" },
+              font: "TeX"},
+        NativeMML: {scale: 100},
+        TeX: { equationNumbers: {autoNumber: "AMS"},
+               MultLineWidth: "85%",
+               TagSide: "right",
+               TagIndent: ".8em"
+             }
+});
+</script>
+<script type="text/javascript"
+        src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS_HTML"></script>
+</head>
+<body>
+<div id="content">
+<h1 class="title">Inversion point encoded binary arrays &#x2014; <code>ipe.org</code></h1>
+<div id="table-of-contents">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents">
+<ul>
+<li><a href="#orgc4ff165">1. Introduction</a></li>
+<li><a href="#org69fdb32">2. Utility functions</a>
+<ul>
+<li><a href="#orgef18cd2">2.1. Array utilities</a></li>
+<li><a href="#orgec33a8e">2.2. Lower bound in an array</a></li>
+<li><a href="#org110a231">2.3. Upper bound in an array</a></li>
+</ul>
+</li>
+<li><a href="#orgc672003">3. Inversion point encoded binary arrays</a>
+<ul>
+<li><a href="#org265ee92">3.1. Encoding and decoding ipe binary arrays</a></li>
+<li><a href="#org00b069c">3.2. Constructing special ipe-sequences</a></li>
+<li><a href="#orgc0be15e">3.3. Applying a unary logical operation to an ipe-sequence within a mask</a></li>
+<li><a href="#orgdd9332f">3.4. Retrieving an element in an ipe-sequence</a></li>
+</ul>
+</li>
+<li><a href="#orge8c40f7">4. Selection Storage with Ipe Binary Arrays</a></li>
+<li><a href="#org425da7c">5. Example Selection Geometry</a></li>
+</ul>
+</div>
+</div>
+<div id="outline-container-orgc4ff165" class="outline-2">
+<h2 id="orgc4ff165"><span class="section-number-2">1</span> Introduction</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+\( 
+  \newcommand{\true}{\mathsf{true}} 
+  \newcommand{\false}{\mathsf{false}}
+  \newcommand{\selset}{{\mathbf{2}}}
+  \newcommand{\esp}[2]{\mathsf{op}^{#1}_{#2}} 
+  \newcommand{\ipe}{\mathsf{ipe}}
+  \newcommand{\inds}{\mathsf{s\_dom}}
+  \) 
+This document describes a form or run-length encoding for
+binary arrays. This encoding stores the <i>inversion points</i>,
+the indices where each run of zeroes or ones starts.
+</p>
+
+<p>
+Let \(\Sigma\) be a finite alphabet.  Then \(s = (s_0, s_1, \ldots,
+  s_{n-1}) \in \Sigma^n\) is a sequence whose length is \(n\).  We assume
+zero-based indexing throughout this document.  Any two indices \(b\)
+and \(e\), where \(0 \leq b \leq e < n\), denote a contigous subsequence
+\(s_{b, e} = (s_b, s_{b+1}, \ldots, s_{e-1})\). The length of the
+subsequence is \(b-e\).
+</p>
+
+<p>
+We call a contiguous subsequence \(s_{b, e}\) a <i>run</i> of value \(v\),
+and denote it as \((v, b, e)\), if 
+</p>
+
+<ul class="org-ul">
+<li>\(\forall i \in [b, e), s_i = v\);</li>
+<li>\(b = 0 \vee s_{b-1} \neq v\); and</li>
+<li>\(e = n \vee s_{e-1} \neq v\).</li>
+</ul>
+
+<p>
+A run is non-empty if \(e > b\).
+</p>
+
+<p>
+The $n$-element sequence \(s\) can be encoded as a sequence of
+consequtive runs \((v_0, b_0, e_0), (v_1, b_1, e_1), \ldots (v_k,
+  b_k, e_k)\), where \(b_0 = 0\), \(e_k = n\), and \(\forall i < n. e_i =
+  b_i\).  We do not insist that runs are non-empty.
+</p>
+
+<p>
+Since the next run starts from where the previous run ends, it
+suffices to only store the start indices, or alternatively lengths,
+of each run. We use an encoding that stores the start indices. In
+this case, the length of the last run is not defined, but can be
+determined if the length of the sequence \(s\) is known.
+</p>
+
+<p>
+If the alphabet is binary, only the first run&rsquo;s value
+must be stored: the value of every other run is determined by the
+value of the run that precedes it.  A binary sequence can thus be
+encoded as a sequence of start indices of runs, that is, points 
+where the sequence&rsquo;s value inverts.
+</p>
+
+<p>
+<b>Definition</b> Let \(s\) be an $n$-element binary sequence, and \((v_0,
+  0, r_0), (v_1, r_0, r_1), \ldots (v_k, r_k, n)\) its encoding as
+consequtive runs. Then \(s\)&rsquo;s <i>inversion point encoding</i>, we shorten it as
+\(\ipe\), is defined as follows:
+</p>
+
+\begin{equation*}
+\ipe(s) =
+\left\{ 
+  \begin{array}{ll} 
+    r_0, r_1, \ldots, r_k & \text{if}\ v_0 = 0, v_k = 0\\
+    0, r_0, r_1, \ldots, r_k & \text{if}\ v_0 = 1, v_k = 0\\
+    r_0, r_1, \ldots, r_k, n & \text{if}\ v_0 = 0, v_k = 1\\
+    0, r_0, r_1, \ldots, r_k, n & \text{if}\ v_0 = 1, v_k = 1\\
+  \end{array}
+\right.
+\end{equation*}
+
+<p>
+The \(\ipe\) is thus the sequence of the starting indices of the runs,
+prefixed with \(0\) if the first run&rsquo;s value is \(0\), and postfixed
+with \(n\) if the last run&rsquo;s value is \(1\).
+</p>
+
+<p>
+<b>Example 1</b> The ipe of \(0, 0, 1, 1, 0\) is \(2, 3\).
+</p>
+
+<p>
+<b>Example 2</b> The ipe of \(1, 1\) is \(0, 2\).
+</p>
+
+<p>
+<b>Example 3</b> The ipe of the empty sequence is the empty sequence.
+</p>
+
+<p>
+<b>Example 4</b> The ipe of \(0, 0, 0, 0\) is the empty sequence.
+</p>
+
+<p>
+<b>Remark 1</b> Inversion point encoding of any binary sequence  
+has an even number of elements.
+</p>
+
+<p>
+<b>Remark 2</b> Inversion point encoding is not injective.
+Two binary sequences of different lenghts that only differ
+in the number of zeroes at the end of the sequences have the same \(\ipe\).
+</p>
+
+<p>
+Thus, to compute the orignal sequence from its \(\ipe\) requires
+knowing the length of the sequence. 
+</p>
+
+<p>
+We could choose to consider an inversion point encoding to represent
+infinite binary sequences, where the last run (of zeroes) is considered to 
+continue indefinitely. Similarly, we could consider the
+sequence to extend to negative indices and assume that the first run up to the
+first inversion point extends indefinitely towards negative infinity.
+Since we assume that the first inversion point start a run of 1s, 
+and that there are an even number of inversion points, an \(\ipe\) sequence
+always describes a binary sequence that contains a finite number of 1s.
+</p>
+</div>
+</div>
+
+
+<div id="outline-container-org69fdb32" class="outline-2">
+<h2 id="org69fdb32"><span class="section-number-2">2</span> Utility functions</h2>
+<div class="outline-text-2" id="text-2">
+</div>
+<div id="outline-container-orgef18cd2" class="outline-3">
+<h3 id="orgef18cd2"><span class="section-number-3">2.1</span> Array utilities</h3>
+<div class="outline-text-3" id="text-2-1">
+<div class="org-src-container">
+<pre class="src src-js" id="orgd4e4704"><span style="color: #0000FF;">function</span> <span style="color: #006699;">push_n</span>(<span style="color: #BA36A5;">arr</span>, <span style="color: #BA36A5;">v</span>, <span style="color: #BA36A5;">n</span>) { <span style="color: #0000FF;">for</span> (<span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">i</span>=0; i&lt;n; ++i) arr.push(v); }
+</pre>
+</div>
+
+<ul class="org-ul">
+<li>Pushes <code>v</code> to <code>arr</code> <code>n</code> times.</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-orgec33a8e" class="outline-3">
+<h3 id="orgec33a8e"><span class="section-number-3">2.2</span> Lower bound in an array</h3>
+<div class="outline-text-3" id="text-2-2">
+<ul class="org-ul">
+<li><i>Precondition:</i> <code>array</code> is sorted in ascending order.</li>
+<li><i>Result:</i> The first index <code>i</code> such that <code>!(array[i] &lt; value)</code>.
+If such an index does not exist, returns <code>array.length</code>.</li>
+</ul>
+
+<div class="org-src-container">
+<pre class="src src-js" id="orgfcf1cfe">  <span style="color: #0000FF;">function</span> <span style="color: #006699;">array_lower_bound</span>(<span style="color: #BA36A5;">array</span>, <span style="color: #BA36A5;">value</span>) {
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">first</span> = 0, <span style="color: #BA36A5;">last</span> = array.length; <span style="color: #8D8D84;">// </span><span style="color: #8D8D84; font-style: italic;">last is past-the-end</span>
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">i</span>, <span style="color: #BA36A5;">count</span>, <span style="color: #BA36A5;">step</span>;
+    count = last - first;
+  
+    <span style="color: #0000FF;">while</span> (count &gt; 0) {
+      i = first; 
+      step = Math.floor(count / 2); 
+      i += step;
+      <span style="color: #0000FF;">if</span> (array[i] &lt; value) {
+        first = ++i; 
+        count -= step + 1; 
+      } <span style="color: #0000FF;">else</span> {
+        count = step;
+      }
+    }
+    <span style="color: #0000FF;">return</span> first;
+  }
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org110a231" class="outline-3">
+<h3 id="org110a231"><span class="section-number-3">2.3</span> Upper bound in an array</h3>
+<div class="outline-text-3" id="text-2-3">
+<ul class="org-ul">
+<li><i>Precondition:</i> <code>array</code> is sorted in ascending order.</li>
+<li><i>Result:</i> The first index <code>i</code> such that <code>array[i] &gt; value</code>.
+If such an index does not exist, returns <code>array.length</code>.</li>
+</ul>
+
+<div class="org-src-container">
+<pre class="src src-js" id="orgd83249d">  <span style="color: #0000FF;">function</span> <span style="color: #006699;">array_upper_bound</span>(<span style="color: #BA36A5;">array</span>, <span style="color: #BA36A5;">value</span>) {
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">first</span> = 0, <span style="color: #BA36A5;">last</span> = array.length;
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">i</span>, <span style="color: #BA36A5;">count</span>, <span style="color: #BA36A5;">step</span>;
+    count = last - first;
+ 
+    <span style="color: #0000FF;">while</span> (count &gt; 0) {
+      i = first; 
+      step = Math.floor(count / 2);
+      i += step;
+      <span style="color: #0000FF;">if</span> (!(value &lt; array[i])) {
+        first = ++i;
+        count -= step + 1;
+      } <span style="color: #0000FF;">else</span> {
+        count = step;
+      }
+    }
+    <span style="color: #0000FF;">return</span> first;
+  }
+</pre>
+</div>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orgc672003" class="outline-2">
+<h2 id="orgc672003"><span class="section-number-2">3</span> Inversion point encoded binary arrays</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+This library provides a minimal implementation of ipe-sequences as arrays.
+The goal is for the API to be sufficient for the needs of
+MultiselectJS.
+</p>
+</div>
+
+<div id="outline-container-org265ee92" class="outline-3">
+<h3 id="org265ee92"><span class="section-number-3">3.1</span> Encoding and decoding ipe binary arrays</h3>
+<div class="outline-text-3" id="text-3-1">
+<p>
+The following two functions handle
+the encoding and decoding of ipe-sequences.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-js" id="org4ea870c">  <span style="color: #0000FF;">function</span> <span style="color: #006699;">ipe_encode</span>(<span style="color: #BA36A5;">arr</span>) {
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">s</span> = <span style="color: #8b1a1a;">false</span>, <span style="color: #BA36A5;">seq</span> = [];
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">i</span>;
+    <span style="color: #0000FF;">for</span> (i = 0; i &lt; arr.length; ++i) {
+      <span style="color: #0000FF;">if</span> (arr[i] !== s) { seq.push(i); s = !s; }
+    }
+    <span style="color: #0000FF;">if</span> (s) seq.push(i);
+    <span style="color: #0000FF;">return</span> seq;
+  }
+</pre>
+</div>
+
+<ul class="org-ul">
+<li><code>arr</code> is an array of <code>bool</code> values.</li>
+<li>Returns an inversion point encoded sequence of <code>arr</code>.</li>
+</ul>
+
+<div class="org-src-container">
+<pre class="src src-js" id="orge0168a8">  <span style="color: #0000FF;">function</span> <span style="color: #006699;">ipe_decode</span>(<span style="color: #BA36A5;">seq</span>) {
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">arr</span> = []; 
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">s</span> = <span style="color: #8b1a1a;">false</span>;
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">pind</span> = 0;
+    <span style="color: #0000FF;">for</span> (<span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">i</span> = 0; i &lt; seq.length; ++i) {
+      push_n(arr, s, seq[i] - pind);
+      pind = seq[i];
+      s = !s;
+    }
+    <span style="color: #0000FF;">return</span> arr;
+  }
+</pre>
+</div>
+
+<ul class="org-ul">
+<li><code>seq</code> is an inversion point encoded sequence.</li>
+<li>Returns the shortest binary array whose inversion point encoding is
+<code>seq</code>.  The requirement for the shortest array means that there are
+no zero-element runs.</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-org00b069c" class="outline-3">
+<h3 id="org00b069c"><span class="section-number-3">3.2</span> Constructing special ipe-sequences</h3>
+<div class="outline-text-3" id="text-3-2">
+<p>
+Construct an array with a single block of 1s:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-js" id="org74b9fed">  <span style="color: #0000FF;">function</span> <span style="color: #006699;">ipe_encode_range</span>(<span style="color: #BA36A5;">b</span>, <span style="color: #BA36A5;">e</span>) { <span style="color: #0000FF;">return</span> [b, e]; }
+</pre>
+</div>
+
+<ul class="org-ul">
+<li><code>b</code> is the first index of the run</li>
+<li><code>e</code> is one past the last index of the run</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-orgc0be15e" class="outline-3">
+<h3 id="orgc0be15e"><span class="section-number-3">3.3</span> Applying a unary logical operation to an ipe-sequence within a mask</h3>
+<div class="outline-text-3" id="text-3-3">
+<p>
+The function <code>ipe_mask(mask, op, seq)</code> returns the result of applying
+the unary logical operation <code>op</code> to the elements of an ipe-sequence
+<code>seq</code>, but only to those indices where <code>mask</code> is 1.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-js" id="orgea6bd47">  <span style="color: #0000FF;">function</span> <span style="color: #006699;">ipe_mask</span>(<span style="color: #BA36A5;">mask</span>, <span style="color: #BA36A5;">op</span>, <span style="color: #BA36A5;">seq</span>) {
+
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">op2</span> = (mv, av) =&gt; mv ? op(av) : av;
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">s</span> = <span style="color: #8b1a1a;">false</span>, <span style="color: #BA36A5;">sm</span> = <span style="color: #8b1a1a;">false</span>, <span style="color: #BA36A5;">sa</span> = <span style="color: #8b1a1a;">false</span>;
+
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">arr</span> = [];
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">a</span> = 0, <span style="color: #BA36A5;">m</span> = 0, <span style="color: #BA36A5;">p</span>;
+
+    <span style="color: #0000FF;">while</span> (m &lt; mask.length &amp;&amp; a &lt; seq.length) {
+      p = Math.min(mask[m], seq[a]);
+
+      <span style="color: #0000FF;">if</span> (p === mask[m]) { sm = !sm; ++m; }
+      <span style="color: #0000FF;">if</span> (p === seq[a]) { sa = !sa; ++a; }
+
+      <span style="color: #0000FF;">if</span> (s != op2(sm, sa)) { s = !s; arr.push(p); }      
+    }
+    <span style="color: #0000FF;">while</span> (a &lt; seq.length) { arr.push(seq[a]); ++a; }
+    <span style="color: #0000FF;">if</span> (op(<span style="color: #8b1a1a;">false</span>)) { <span style="color: #0000FF;">while</span> (m &lt; mask.length) { arr.push(mask[m]); ++m; } }
+   
+    <span style="color: #0000FF;">return</span> arr;
+  }
+</pre>
+</div>
+
+<ul class="org-ul">
+<li><code>mask</code> and <code>seq</code> are ipe-sequences.</li>
+<li><code>op</code> is a function of type <code>bool -&gt; bool</code>.</li>
+<li>Let <code>m = ipe_decode(mask)</code> and <code>a = ipe_decode(seq)</code>.</li>
+<li>Let <code>me</code> be <code>m</code> extended with <code>false</code> values at the end so that its
+length is <code>max(m.length, a.length)</code>.</li>
+<li>Let <code>ae</code> be <code>a</code> extended with <code>false</code> values at the end so that its
+length is <code>max(m.length, a.length)</code>.</li>
+<li>The return value is <code>ipe_encode(r)</code>, where <code>r</code> is an array
+whose elements are <code>r[i] = me[i] ? op(ae[i]) : ae[i]</code>.</li>
+</ul>
+
+<p>
+A diff between two ipe-sequences can be computed using <code>ipe_mask</code>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-js" id="orge3b7619">  <span style="color: #0000FF;">function</span> <span style="color: #006699;">ipe_diff</span>(<span style="color: #BA36A5;">seq_a</span>, <span style="color: #BA36A5;">seq_b</span>) {
+    <span style="color: #0000FF;">return</span> ipe_mask(seq_a, b =&gt; !b, seq_b);
+  }
+</pre>
+</div>
+
+<ul class="org-ul">
+<li><code>mask</code> and <code>seq</code> are ipe-sequences.</li>
+<li>The return value is an ipe-sequence.</li>
+</ul>
+
+<p>
+The <code>ipe_mask</code> and <code>ipe_diff</code> functions are sufficient for all
+manipulation of binary sequenes encountered with in the MultiselectJS
+library. They maintain the invariant that binary sequences contain
+a finite number of 1s. Arbitrary logical operations do not
+maintain this invariant.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgdd9332f" class="outline-3">
+<h3 id="orgdd9332f"><span class="section-number-3">3.4</span> Retrieving an element in an ipe-sequence</h3>
+<div class="outline-text-3" id="text-3-4">
+<div class="org-src-container">
+<pre class="src src-js" id="org6e56639">  <span style="color: #0000FF;">function</span> <span style="color: #006699;">ipe_at</span>(<span style="color: #BA36A5;">seq</span>, <span style="color: #BA36A5;">i</span>) {
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">j</span> = array_upper_bound(seq, i);
+    <span style="color: #0000FF;">return</span> !(j%2 === 0);
+  }
+</pre>
+</div>
+
+<ul class="org-ul">
+<li><code>seq</code> is an ipe-sequence.</li>
+<li>Return value is equivalent with <code>ipe_decode(seq)[i]</code>.</li>
+</ul>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orge8c40f7" class="outline-2">
+<h2 id="orge8c40f7"><span class="section-number-2">4</span> Selection Storage with Ipe Binary Arrays</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+The <code>IpeStorage</code> class implements MultiselectJS&rsquo;s Selection Storage API.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-js" id="org4d3dc88">  <span style="color: #0000FF;">function</span> <span style="color: #006699;">IpeStorage</span> () {
+    <span style="color: #8b1a1a;">this</span>._ops = [];
+    <span style="color: #8b1a1a;">this</span>._domain = [];
+    <span style="color: #8b1a1a;">this</span>._base = [];
+  }
+  
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.at = <span style="color: #0000FF;">function</span>(<span style="color: #BA36A5;">i</span>) { <span style="color: #0000FF;">return</span> ipe_at(<span style="color: #8b1a1a;">this</span>._domain, i); };
+
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.selected = <span style="color: #0000FF;">function</span>() { <span style="color: #0000FF;">return</span> <span style="color: #8b1a1a;">this</span>._domain; };
+
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.push = <span style="color: #0000FF;">function</span> (<span style="color: #BA36A5;">op</span>, <span style="color: #BA36A5;">changed</span>) {
+    <span style="color: #0000FF;">if</span> (changed!==<span style="color: #8b1a1a;">undefined</span>) { <span style="color: #0000FF;">throw</span> <span style="color: #008000;">"Change tracking not supported"</span>; }
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">masked_old</span> = ipe_mask(op.domain, (b =&gt; b), <span style="color: #8b1a1a;">this</span>._domain);
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">new_domain</span> = ipe_mask(op.domain, op.f, <span style="color: #8b1a1a;">this</span>._domain);
+<span style="color: #8D8D84;">//    </span><span style="color: #8D8D84; font-style: italic;">var masked_new = ipe_mask(op.domain, (b =&gt; b), new_domain); </span>
+<span style="color: #8D8D84;">//    </span><span style="color: #8D8D84; font-style: italic;">var diff = ipe_diff(masked_old, masked_new);</span>
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">diff</span> = ipe_diff(masked_old, new_domain);
+    op.diff = diff;
+    <span style="color: #8b1a1a;">this</span>._domain = new_domain;
+    <span style="color: #8b1a1a;">this</span>._ops.push(op);
+    <span style="color: #0000FF;">if</span> (changed) { 
+    }
+  };
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.pop = <span style="color: #0000FF;">function</span>(<span style="color: #BA36A5;">changed</span>) {
+    <span style="color: #0000FF;">if</span> (changed!==<span style="color: #8b1a1a;">undefined</span>) { <span style="color: #0000FF;">throw</span> <span style="color: #008000;">"Change tracking not supported"</span>; }
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">op</span> = <span style="color: #8b1a1a;">this</span>._ops.pop();
+    <span style="color: #8b1a1a;">this</span>._domain = ipe_mask(op.diff, (b =&gt; !b), <span style="color: #8b1a1a;">this</span>._domain);
+    <span style="color: #0000FF;">return</span> op;
+  };
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.top = <span style="color: #0000FF;">function</span> () { <span style="color: #0000FF;">return</span> <span style="color: #8b1a1a;">this</span>._ops[<span style="color: #8b1a1a;">this</span>._ops.length - 1]; };
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.top2 = <span style="color: #0000FF;">function</span> () { <span style="color: #0000FF;">return</span> <span style="color: #8b1a1a;">this</span>._ops[<span style="color: #8b1a1a;">this</span>._ops.length - 2]; }
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.size = <span style="color: #0000FF;">function</span> () { <span style="color: #0000FF;">return</span> <span style="color: #8b1a1a;">this</span>._ops.length; };
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.bake = <span style="color: #0000FF;">function</span> () { <span style="color: #0000FF;">return</span> <span style="color: #8b1a1a;">this</span>._ops.shift(); };
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.onSelected = <span style="color: #0000FF;">function</span> (<span style="color: #BA36A5;">J</span>) { 
+    <span style="color: #0000FF;">return</span> J.length === 2 &amp;&amp; J[0] + 1 === J[1] &amp;&amp; <span style="color: #8b1a1a;">this</span>.at(J[0]) === <span style="color: #8b1a1a;">true</span>;
+    <span style="color: #8D8D84;">// </span><span style="color: #8D8D84; font-style: italic;">J must indicate only one element, and that element must be currently selected</span>
+  };
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.modifyStorage = <span style="color: #0000FF;">function</span> (<span style="color: #BA36A5;">cmd</span>) {} <span style="color: #8D8D84;">// </span><span style="color: #8D8D84; font-style: italic;">all commands are a noop</span>
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.equalDomains = <span style="color: #0000FF;">function</span> (<span style="color: #BA36A5;">J1</span>, <span style="color: #BA36A5;">J2</span>) { 
+    <span style="color: #0000FF;">if</span> (J1.length !== J2.length) <span style="color: #0000FF;">return</span> <span style="color: #8b1a1a;">false</span>;
+    <span style="color: #0000FF;">for</span> (<span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">i</span>=0; i&lt;J1.length; ++i) <span style="color: #0000FF;">if</span> (J1[i] !== J2[i]) <span style="color: #0000FF;">return</span> <span style="color: #8b1a1a;">false</span>;
+    <span style="color: #0000FF;">return</span> <span style="color: #8b1a1a;">true</span>;    
+  }
+  IpeStorage.<span style="color: #8b1a1a;">prototype</span>.isEmpty = <span style="color: #0000FF;">function</span> (<span style="color: #BA36A5;">J</span>) { J.length === 0; }
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org425da7c" class="outline-2">
+<h2 id="org425da7c"><span class="section-number-2">5</span> Example Selection Geometry</h2>
+<div class="outline-text-2" id="text-5">
+<div class="org-src-container">
+<pre class="src src-js" id="orgc9052df"><span style="color: #8D8D84;">// </span><span style="color: #8D8D84; font-style: italic;">size is the number of elements</span>
+<span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">IpeOrderedGeometry</span> = <span style="color: #0000FF;">function</span> (<span style="color: #BA36A5;">size</span>) {
+  multiselect.DefaultGeometry.call(<span style="color: #8b1a1a;">this</span>);
+  <span style="color: #8b1a1a;">this</span>._size = size;
+};
+
+IpeOrderedGeometry.<span style="color: #8b1a1a;">prototype</span> = Object.create(multiselect.DefaultGeometry.<span style="color: #8b1a1a;">prototype</span>);
+IpeOrderedGeometry.<span style="color: #8b1a1a;">prototype</span>.constructor = IpeOrderedGeometry;
+
+IpeOrderedGeometry.<span style="color: #8b1a1a;">prototype</span>.size = <span style="color: #0000FF;">function</span>() { <span style="color: #0000FF;">return</span> <span style="color: #8b1a1a;">this</span>._size; }
+
+<span style="color: #8D8D84;">// </span><span style="color: #8D8D84; font-style: italic;">retain only the anchor and the active end, ignore null points</span>
+IpeOrderedGeometry.<span style="color: #8b1a1a;">prototype</span>.extendPath = <span style="color: #0000FF;">function</span>(<span style="color: #BA36A5;">path</span>, <span style="color: #BA36A5;">vp</span>) {
+  <span style="color: #0000FF;">if</span> (vp === <span style="color: #8b1a1a;">null</span>) <span style="color: #0000FF;">return</span> <span style="color: #8b1a1a;">null</span>;
+  <span style="color: #0000FF;">if</span> (path.length === 2) path.pop();
+  path.push(vp);
+};
+
+<span style="color: #8D8D84;">// </span><span style="color: #8D8D84; font-style: italic;">selection domain is the range between anchor and active end </span>
+IpeOrderedGeometry.<span style="color: #8b1a1a;">prototype</span>.selectionDomain = <span style="color: #0000FF;">function</span> (<span style="color: #BA36A5;">spath</span>) {
+  <span style="color: #0000FF;">if</span> (spath.length === 0) <span style="color: #0000FF;">return</span> ipe_encode([]);
+  <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">b</span> = Math.max(0, Math.min(spath[0], spath[spath.length-1]));
+  <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">e</span> = Math.min(<span style="color: #8b1a1a;">this</span>.size()-1, Math.max(spath[0], spath[spath.length-1]));
+  <span style="color: #0000FF;">return</span> ipe_encode_range(b, e+1);
+};
+
+<span style="color: #8D8D84;">// </span><span style="color: #8D8D84; font-style: italic;">iterate from 0 to size-1</span>
+IpeOrderedGeometry.<span style="color: #8b1a1a;">prototype</span>.filter = <span style="color: #0000FF;">function</span> (<span style="color: #BA36A5;">predicate</span>) {
+  <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">b</span> = [];
+  <span style="color: #0000FF;">for</span> (<span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">i</span> = 0; i &lt; <span style="color: #8b1a1a;">this</span>.size(); ++i) b[i] = predicate(i);
+  <span style="color: #0000FF;">return</span> ipe_encode(b);
+};
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-js" id="org08c6ab5">exports.IpeStorage = IpeStorage;
+exports.IpeOrderedGeometry = IpeOrderedGeometry;
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-js" id="org7322d93">  QUnit.test( <span style="color: #008000;">"ipe ordered geometry test"</span>, <span style="color: #0000FF;">function</span>( <span style="color: #BA36A5;">assert</span> ) {
+    <span style="color: #0000FF;">var</span> <span style="color: #BA36A5;">g</span> = <span style="color: #0000FF;">new</span> <span style="color: #6434A3;">IpeOrderedGeometry</span>(10);
+
+    assert.deepEqual(g.selectionDomain([3, 6]), [3, 7]);
+    assert.deepEqual(g.selectionDomain([6, 3]), [3, 7]);
+    assert.deepEqual(g.selectionDomain([6, 100, 22, 2, 3]), [3, 7]);
+    assert.deepEqual(g.selectionDomain([]), []);
+
+    assert.deepEqual(g.filter((i) =&gt; i == 7 || i == 8), [7, 9]);
+  });
+</pre>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

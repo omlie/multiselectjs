@@ -1,6 +1,6 @@
 #+MACRO: msjs MultiselectJS
 #+AUTHOR: Jaakko Järvi
-#+EMAIL: jarvi@cse.tamu.edu
+#+EMAIL: jaakko.jarvi@uib.no
 #+OPTIONS: ':t *:t -:t ::t <:{} H:3 \n:nil ^:t arch:headline
 #+OPTIONS: author:t c:nil creator:nil d:(not "LOGBOOK") date:t
 #+OPTIONS: e:t email:nil f:t inline:nil num:t p:nil pri:nil stat:nil
@@ -22,3 +22,4 @@
 
 #+HTML_HEAD_EXTRA: <style>.org-src-name { font-weight: normal; text-decoration: overline underline;  font-family: monospace; margin-top: 1cm; }</style>
 # +HTML_HEAD_EXTRA: <style>.org-src-name:before { font-family: initial; content: ""; }</style>
+

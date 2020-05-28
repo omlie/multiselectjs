@@ -1,0 +1,707 @@
+* Export configuration                                             :noexport:
+
+  #+SETUPFILE: org-settings.org
+  #+TITLE:     Inversion point encoded binary arrays --- ~ipe.org~
+  #+AUTHOR:    Jaakko Järvi
+  #+EMAIL:     jarvij@gmail.com
+  #+DATE:      
+
+
+* Introduction
+
+  \( 
+  \newcommand{\true}{\mathsf{true}} 
+  \newcommand{\false}{\mathsf{false}}
+  \newcommand{\selset}{{\mathbf{2}}}
+  \newcommand{\esp}[2]{\mathsf{op}^{#1}_{#2}} 
+  \newcommand{\ipe}{\mathsf{ipe}}
+  \newcommand{\inds}{\mathsf{s\_dom}}
+  \) 
+  This document describes a form or run-length encoding for
+  binary arrays. This encoding stores the /inversion points/,
+  the indices where each run of zeroes or ones starts.
+
+  Let $\Sigma$ be a finite alphabet.  Then $s = (s_0, s_1, \ldots,
+  s_{n-1}) \in \Sigma^n$ is a sequence whose length is $n$.  We assume
+  zero-based indexing throughout this document.  Any two indices $b$
+  and $e$, where $0 \leq b \leq e < n$, denote a contigous subsequence
+  $s_{b, e} = (s_b, s_{b+1}, \ldots, s_{e-1})$. The length of the
+  subsequence is $b-e$.
+
+  We call a contiguous subsequence $s_{b, e}$ a /run/ of value $v$,
+  and denote it as $(v, b, e)$, if 
+   
+    - $\forall i \in [b, e), s_i = v$;
+    - $b = 0 \vee s_{b-1} \neq v$; and
+    - $e = n \vee s_{e-1} \neq v$.
+ 
+  A run is non-empty if $e > b$.
+
+  The $n$-element sequence $s$ can be encoded as a sequence of
+  consequtive runs $(v_0, b_0, e_0), (v_1, b_1, e_1), \ldots (v_k,
+  b_k, e_k)$, where $b_0 = 0$, $e_k = n$, and $\forall i < n. e_i =
+  b_i$.  We do not insist that runs are non-empty.
+
+  Since the next run starts from where the previous run ends, it
+  suffices to only store the start indices, or alternatively lengths,
+  of each run. We use an encoding that stores the start indices. In
+  this case, the length of the last run is not defined, but can be
+  determined if the length of the sequence $s$ is known.
+
+  If the alphabet is binary, only the first run's value
+  must be stored: the value of every other run is determined by the
+  value of the run that precedes it.  A binary sequence can thus be
+  encoded as a sequence of start indices of runs, that is, points 
+  where the sequence's value inverts.
+
+  *Definition* Let $s$ be an $n$-element binary sequence, and $(v_0,
+  0, r_0), (v_1, r_0, r_1), \ldots (v_k, r_k, n)$ its encoding as
+  consequtive runs. Then $s$'s /inversion point encoding/, we shorten it as
+  $\ipe$, is defined as follows:
+
+    \begin{equation*}
+    \ipe(s) =
+    \left\{ 
+      \begin{array}{ll} 
+        r_0, r_1, \ldots, r_k & \text{if}\ v_0 = 0, v_k = 0\\
+        0, r_0, r_1, \ldots, r_k & \text{if}\ v_0 = 1, v_k = 0\\
+        r_0, r_1, \ldots, r_k, n & \text{if}\ v_0 = 0, v_k = 1\\
+        0, r_0, r_1, \ldots, r_k, n & \text{if}\ v_0 = 1, v_k = 1\\
+      \end{array}
+    \right.
+    \end{equation*}
+
+  The $\ipe$ is thus the sequence of the starting indices of the runs,
+  prefixed with $0$ if the first run's value is $0$, and postfixed
+  with $n$ if the last run's value is $1$.
+
+  *Example 1* The ipe of $0, 0, 1, 1, 0$ is $2, 3$.
+
+  *Example 2* The ipe of $1, 1$ is $0, 2$.
+
+  *Example 3* The ipe of the empty sequence is the empty sequence.
+
+  *Example 4* The ipe of $0, 0, 0, 0$ is the empty sequence.
+
+  *Remark 1* Inversion point encoding of any binary sequence  
+  has an even number of elements.
+
+  *Remark 2* Inversion point encoding is not injective.
+  Two binary sequences of different lenghts that only differ
+  in the number of zeroes at the end of the sequences have the same $\ipe$.
+
+  Thus, to compute the orignal sequence from its $\ipe$ requires
+  knowing the length of the sequence. 
+
+  We could choose to consider an inversion point encoding to represent
+  infinite binary sequences, where the last run (of zeroes) is considered to 
+  continue indefinitely. Similarly, we could consider the
+  sequence to extend to negative indices and assume that the first run up to the
+  first inversion point extends indefinitely towards negative infinity.
+  Since we assume that the first inversion point start a run of 1s, 
+  and that there are an even number of inversion points, an $\ipe$ sequence
+  always describes a binary sequence that contains a finite number of 1s.
+  
+
+* Utility functions
+
+#+NAME: utilities
+#+BEGIN_SRC js :noweb yes :exports none
+<<array-utilities>>
+<<array-lower-bound>>
+<<array-upper-bound>>
+#+END_SRC
+
+** Array utilities
+
+#+NAME: array-utilities
+#+BEGIN_SRC js :noweb strip-export
+function push_n(arr, v, n) { for (var i=0; i<n; ++i) arr.push(v); }
+#+END_SRC
+
+- Pushes ~v~ to ~arr~ ~n~ times.
+
+** Lower bound in an array
+
+- /Precondition:/ ~array~ is sorted in ascending order.
+- /Result:/ The first index ~i~ such that ~!(array[i] < value)~.
+  If such an index does not exist, returns ~array.length~.
+
+#+NAME: array-lower-bound
+#+BEGIN_SRC js
+  function array_lower_bound(array, value) {
+    var first = 0, last = array.length; // last is past-the-end
+    var i, count, step;
+    count = last - first;
+  
+    while (count > 0) {
+      i = first; 
+      step = Math.floor(count / 2); 
+      i += step;
+      if (array[i] < value) {
+        first = ++i; 
+        count -= step + 1; 
+      } else {
+        count = step;
+      }
+    }
+    return first;
+  }
+#+END_SRC
+
+** Upper bound in an array
+
+- /Precondition:/ ~array~ is sorted in ascending order.
+- /Result:/ The first index ~i~ such that ~array[i] > value~.
+  If such an index does not exist, returns ~array.length~.
+
+#+NAME: array-upper-bound
+#+BEGIN_SRC js 
+  function array_upper_bound(array, value) {
+    var first = 0, last = array.length;
+    var i, count, step;
+    count = last - first;
+ 
+    while (count > 0) {
+      i = first; 
+      step = Math.floor(count / 2);
+      i += step;
+      if (!(value < array[i])) {
+        first = ++i;
+        count -= step + 1;
+      } else {
+        count = step;
+      }
+    }
+    return first;
+  }
+#+END_SRC
+
+#+NAME: array-lower-bound-test
+#+BEGIN_SRC js :exports none
+  QUnit.test( "array_lower_bound", function( assert ) {
+    assert.equal(array_lower_bound([], 1), 0, "lower bound in empty array");
+    assert.equal(array_lower_bound([0], 1), 1, "one element less");
+    assert.equal(array_lower_bound([1], 1), 0, "one element equal");
+    assert.equal(array_lower_bound([2], 1), 0, "one element greater");
+
+    assert.equal(array_lower_bound([2,4], 0), 0, "less than first");
+    assert.equal(array_lower_bound([2,4], 2), 0, "equal to first");
+    assert.equal(array_lower_bound([2,4], 3), 1, "between");
+    assert.equal(array_lower_bound([2,4], 4), 1, "equal to second");
+    assert.equal(array_lower_bound([2,4], 5), 2, "greater than second");
+
+    assert.equal(array_lower_bound([2,4,4,5], 3), 1);
+    assert.equal(array_lower_bound([2,4,4,5], 4), 1);
+    assert.equal(array_lower_bound([2,4,4,5], 5), 3);
+    assert.equal(array_lower_bound([2,4,4,5], 6), 4);
+  });
+#+END_SRC
+
+#+NAME: array-upper-bound-test
+#+BEGIN_SRC js :exports none
+  QUnit.test( "array_upper_bound", function( assert ) {
+    assert.equal(array_upper_bound([], 1), 0, "upper bound in empty array");
+    assert.equal(array_upper_bound([0], 1), 1, "one element less");
+    assert.equal(array_upper_bound([1], 1), 1, "one element equal");
+    assert.equal(array_upper_bound([2], 1), 0, "one element greater");
+
+    assert.equal(array_upper_bound([2,4], 0), 0, "less than first");
+    assert.equal(array_upper_bound([2,4], 2), 1, "equal to first");
+    assert.equal(array_upper_bound([2,4], 3), 1, "between");
+    assert.equal(array_upper_bound([2,4], 4), 2, "equal to second");
+    assert.equal(array_upper_bound([2,4], 5), 2, "greater than second");
+
+    assert.equal(array_upper_bound([2,4,4,5], 3), 1);
+    assert.equal(array_upper_bound([2,4,4,5], 4), 3);
+    assert.equal(array_upper_bound([2,4,4,5], 5), 4);
+    assert.equal(array_upper_bound([2,4,4,5], 6), 4);
+  });
+#+END_SRC
+
+* Inversion point encoded binary arrays
+
+This library provides a minimal implementation of ipe-sequences as arrays.
+The goal is for the API to be sufficient for the needs of
+{{{msjs}}}.
+
+# serve multiselection, not a general 
+# We represent binary sequences as arrays of booleans, and call them
+# binary arrays.  Ipe-sequences are represented as arrays of
+# non-negative integers. 
+
+** Encoding and decoding ipe binary arrays
+
+The following two functions handle
+the encoding and decoding of ipe-sequences.
+
+#+NAME: ipe-encode
+#+BEGIN_SRC js
+  function ipe_encode(arr) {
+    var s = false, seq = [];
+    var i;
+    for (i = 0; i < arr.length; ++i) {
+      if (arr[i] !== s) { seq.push(i); s = !s; }
+    }
+    if (s) seq.push(i);
+    return seq;
+  }
+#+END_SRC
+
+- ~arr~ is an array of ~bool~ values.
+- Returns an inversion point encoded sequence of ~arr~.
+
+#+NAME: ipe-decode
+#+BEGIN_SRC js
+  function ipe_decode(seq) {
+    var arr = []; 
+    var s = false;
+    var pind = 0;
+    for (var i = 0; i < seq.length; ++i) {
+      push_n(arr, s, seq[i] - pind);
+      pind = seq[i];
+      s = !s;
+    }
+    return arr;
+  }
+#+END_SRC
+
+- ~seq~ is an inversion point encoded sequence.
+- Returns the shortest binary array whose inversion point encoding is
+  ~seq~.  The requirement for the shortest array means that there are
+  no zero-element runs.
+  
+#+NAME: ipe-encode-decode-test
+#+BEGIN_SRC js :exports none
+  QUnit.test( "ipe_encode_decode_test", function( assert ) {
+    var enc = ipe_encode, dec = ipe_decode;
+    assert.deepEqual(dec(enc([])), [], "");
+
+    var f = false, t = true;
+    var arrs = [
+      [], [t], [t, t], [f, f], 
+      [f, t], [t, t, f], [f, t, f, t],
+      [f, f, t, t, f, t, t, t, f, f]
+    ];
+
+    function drop_false_suffix(arr) { 
+      var b = arr.slice();
+      while (b.length > 0 && b[b.length-1] === f) b.pop(); 
+      return b; 
+    }
+
+    for (var i=0; i<arrs.length; ++i) {
+      assert.deepEqual(dec(enc(arrs[i])), drop_false_suffix(arrs[i]), "loop"+i);
+    }
+  });
+#+END_SRC
+
+** Constructing special ipe-sequences
+
+Construct an array with a single block of 1s:
+
+#+NAME: ipe-encode-range
+#+BEGIN_SRC js
+  function ipe_encode_range(b, e) { return [b, e]; }
+#+END_SRC
+
+- ~b~ is the first index of the run
+- ~e~ is one past the last index of the run
+
+** Applying a unary logical operation to an ipe-sequence within a mask
+
+The function ~ipe_mask(mask, op, seq)~ returns the result of applying
+the unary logical operation ~op~ to the elements of an ipe-sequence
+~seq~, but only to those indices where ~mask~ is 1.
+
+#+NAME: ipe-mask
+#+BEGIN_SRC js
+  function ipe_mask(mask, op, seq) {
+
+    var op2 = (mv, av) => mv ? op(av) : av;
+    var s = false, sm = false, sa = false;
+
+    var arr = [];
+    var a = 0, m = 0, p;
+
+    while (m < mask.length && a < seq.length) {
+      p = Math.min(mask[m], seq[a]);
+
+      if (p === mask[m]) { sm = !sm; ++m; }
+      if (p === seq[a]) { sa = !sa; ++a; }
+
+      if (s != op2(sm, sa)) { s = !s; arr.push(p); }      
+    }
+    while (a < seq.length) { arr.push(seq[a]); ++a; }
+    if (op(false)) { while (m < mask.length) { arr.push(mask[m]); ++m; } }
+   
+    return arr;
+  }
+#+END_SRC
+
+- ~mask~ and ~seq~ are ipe-sequences.
+- ~op~ is a function of type ~bool -> bool~.
+- Let ~m = ipe_decode(mask)~ and ~a = ipe_decode(seq)~.
+- Let ~me~ be ~m~ extended with ~false~ values at the end so that its
+  length is ~max(m.length, a.length)~.
+- Let ~ae~ be ~a~ extended with ~false~ values at the end so that its
+  length is ~max(m.length, a.length)~.
+- The return value is ~ipe_encode(r)~, where ~r~ is an array
+  whose elements are ~r[i] = me[i] ? op(ae[i]) : ae[i]~.
+
+A diff between two ipe-sequences can be computed using ~ipe_mask~:
+
+#+NAME: ipe-diff
+#+BEGIN_SRC js
+  function ipe_diff(seq_a, seq_b) {
+    return ipe_mask(seq_a, b => !b, seq_b);
+  }
+#+END_SRC
+
+- ~mask~ and ~seq~ are ipe-sequences.
+- The return value is an ipe-sequence.
+
+The ~ipe_mask~ and ~ipe_diff~ functions are sufficient for all
+manipulation of binary sequenes encountered with in the MultiselectJS
+library. They maintain the invariant that binary sequences contain
+a finite number of 1s. Arbitrary logical operations do not
+maintain this invariant.
+
+#+NAME: ipe-mask-and-diff-test
+#+BEGIN_SRC js :exports none
+  QUnit.test( "ipe_mask_tests", function( assert ) {
+    var enc = ipe_encode, dec = ipe_decode, rm = ipe_mask;
+    var f = false, t = true;
+
+    var ff = function (x) { return f; };
+    var tt = function (x) { return t; };
+    var neg = function (x) { return !x; };
+    var id = function (x) { return x; };
+
+    assert.deepEqual(enc([t, t, f, f]), [0, 2]);    
+    assert.deepEqual(enc([t, t, f, f, t]), [0, 2, 4, 5]);    
+    assert.deepEqual(enc([t, t, t]), [0, 3]);
+    assert.deepEqual(enc([f, t, f]), [1, 2]);
+    assert.deepEqual((rm(enc([f, t, f]), neg, enc([t, t, t]))), [0, 1, 2, 3], "1");
+    assert.deepEqual(dec(rm(enc([f, f, f]), neg, enc([t, t, t]))), [t, t, t]);
+    assert.deepEqual(dec(rm(enc([t, t, t]), neg, enc([t, t, t]))), []);
+    assert.deepEqual(dec(rm(enc([t, f, f]), neg, enc([t, t, t]))), [f, t, t]);
+
+    assert.deepEqual(dec(rm(enc([f, f, f]), id, enc([t, t, f]))), [t, t]);
+    assert.deepEqual(dec(rm(enc([t, t, t]), id, enc([t, t, f]))), [t, t]);
+    assert.deepEqual(dec(rm(enc([t, f, f]), id, enc([t, t, f]))), [t, t]);
+
+    assert.deepEqual(dec(rm(enc([f, f, f]), tt, enc([f, t, f]))), [f, t]);
+    assert.deepEqual(dec(rm(enc([t, t, t]), tt, enc([f, t, f]))), [t, t, t]);
+    assert.deepEqual(dec(rm(enc([t, f, f]), tt, enc([f, t, f]))), [t, t]);
+
+    assert.deepEqual(dec(rm(enc([f, f, f]), ff, enc([t, t, t]))), [t, t, t]);
+    assert.deepEqual(dec(rm(enc([t, t, t]), ff, enc([t, t, t]))), []);
+    assert.deepEqual(dec(rm(enc([t, f, f]), ff, enc([t, t, t]))), [f, t, t]);
+  });
+
+  QUnit.test( "ipe_diff_tests", function( assert ) {
+    var enc = ipe_encode, dec = ipe_decode, rm = ipe_diff;
+    var f = false, t = true;
+
+    assert.deepEqual(dec(rm(enc([f, f, f]), enc([t, t, t]))), [t, t, t]);
+    assert.deepEqual(dec(rm(enc([t, t, t]), enc([t, t, t]))), []);
+    assert.deepEqual(dec(rm(enc([t, f, f]), enc([t, t, t]))), [f, t, t]);
+    assert.deepEqual(dec(rm(enc([t, t, t]), enc([f, t, f]))), [t, f, t]);
+  });
+#+END_SRC
+
+** Retrieving an element in an ipe-sequence
+
+#+NAME: ipe-at
+#+BEGIN_SRC js
+  function ipe_at(seq, i) {
+    var j = array_upper_bound(seq, i);
+    return !(j%2 === 0);
+  }
+#+END_SRC
+
+- ~seq~ is an ipe-sequence.
+- Return value is equivalent with ~ipe_decode(seq)[i]~. 
+
+#+NAME: ipe-at-test
+#+BEGIN_SRC js :exports none
+  QUnit.test( "ipe_at", function( assert ) {
+    assert.equal(ipe_at([], 0), false, "");
+    assert.equal(ipe_at([], 3), false, "");
+
+    assert.equal(ipe_at([1, 2, 3, 4], 0), false, "");
+    assert.equal(ipe_at([1, 2, 3, 4], 1), true, "");
+    assert.equal(ipe_at([1, 2, 3, 4], 2), false, "");
+    assert.equal(ipe_at([1, 2, 3, 4], 3), true, "");
+    assert.equal(ipe_at([1, 2, 3, 4], 4), false, "");
+    assert.equal(ipe_at([1, 2, 3, 4], 5), false, "");
+  });
+#+END_SRC
+
+* Tangle                                                           :noexport:
+
+#+NAME: ipe-all
+#+BEGIN_SRC js :noweb yes :padline no
+<<utilities>>
+<<ipe-encode>>
+<<ipe-decode>>
+<<ipe-encode-range>>
+<<ipe-at>>
+<<ipe-mask>>
+<<ipe-diff>>
+
+<<ipe-storage>>
+<<ipe-ordered-geometry>>
+#+END_SRC
+
+#+BEGIN_SRC js :exports none :tangle ../js/ipe_storage.js :noweb yes :padline no
+var multiselect = require('./multiselect.js');
+<<ipe-all>>
+<<ipe-exports>>
+#+END_SRC
+** Tests
+
+#+BEGIN_SRC html :exports none :tangle ../test/ipetests.html :noweb yes :padline no 
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Ipe Tests</title>
+  <link rel="stylesheet" href="http://code.jquery.com/qunit/qunit-1.18.0.css">
+</head>
+<body>
+  <div id="qunit"></div>
+  <div id="qunit-fixture"></div>
+  <script type="text/javascript" src="../dist/multiselect.js"></script>
+  <script type="text/javascript" src="https://code.jquery.com/qunit/qunit-1.18.0.js"></script>
+  <script type="text/javascript" src="./ipetests.js"></script>
+</body>
+</html>
+#+END_SRC
+
+#+BEGIN_SRC js :exports none :tangle ../test/ipetests.js :noweb yes :padline no 
+  var test = QUnit.test;
+  
+  <<ipe-all>>
+
+  <<array-lower-bound-test>>
+  <<array-upper-bound-test>>
+
+  <<ipe-encode-decode-test>>
+
+  <<ipe-unary-op-test>>
+  <<ipe-binary-op-test>>
+  <<ipe-mask-and-diff-test>>
+  <<ipe-at-test>>
+
+  <<ipe-storage-test>>
+
+  <<ipe-oredered-geometry-test>>
+#+END_SRC
+
+* Selection Storage with Ipe Binary Arrays
+
+The ~IpeStorage~ class implements {{{msjs}}}'s Selection Storage API.
+
+#+NAME: ipe-storage
+#+BEGIN_SRC js
+  function IpeStorage () {
+    this._ops = [];
+    this._domain = [];
+    this._base = [];
+  }
+  
+  IpeStorage.prototype.at = function(i) { return ipe_at(this._domain, i); };
+
+  IpeStorage.prototype.selected = function() { return this._domain; };
+
+  IpeStorage.prototype.push = function (op, changed) {
+    if (changed!==undefined) { throw "Change tracking not supported"; }
+    var masked_old = ipe_mask(op.domain, (b => b), this._domain);
+    var new_domain = ipe_mask(op.domain, op.f, this._domain);
+//    var masked_new = ipe_mask(op.domain, (b => b), new_domain); 
+//    var diff = ipe_diff(masked_old, masked_new);
+    var diff = ipe_diff(masked_old, new_domain);
+    op.diff = diff;
+    this._domain = new_domain;
+    this._ops.push(op);
+    if (changed) { 
+    }
+  };
+  IpeStorage.prototype.pop = function(changed) {
+    if (changed!==undefined) { throw "Change tracking not supported"; }
+    var op = this._ops.pop();
+    this._domain = ipe_mask(op.diff, (b => !b), this._domain);
+    return op;
+  };
+  IpeStorage.prototype.top = function () { return this._ops[this._ops.length - 1]; };
+  IpeStorage.prototype.top2 = function () { return this._ops[this._ops.length - 2]; }
+  IpeStorage.prototype.size = function () { return this._ops.length; };
+  IpeStorage.prototype.bake = function () { return this._ops.shift(); };
+  IpeStorage.prototype.onSelected = function (J) { 
+    return J.length === 2 && J[0] + 1 === J[1] && this.at(J[0]) === true;
+    // J must indicate only one element, and that element must be currently selected
+  };
+  IpeStorage.prototype.modifyStorage = function (cmd) {} // all commands are a noop
+  IpeStorage.prototype.equalDomains = function (J1, J2) { 
+    if (J1.length !== J2.length) return false;
+    for (var i=0; i<J1.length; ++i) if (J1[i] !== J2[i]) return false;
+    return true;    
+  }
+  IpeStorage.prototype.isEmpty = function (J) { J.length === 0; }
+#+END_SRC
+
+#+NAME: ipe-storage-test
+#+BEGIN_SRC js :exports none
+  QUnit.test( "ipe_storage test", function( assert ) {
+    var ops = new IpeStorage();
+
+    function makeIpeOp (f, domain) {
+      return { f: f, domain: domain };
+    }
+
+    assert.deepEqual(ops.selected(), [], "ipe_op_comp 1");
+    ops.push(makeIpeOp(b => b, [2, 4]));
+    assert.deepEqual(ops.selected(), []);
+    ops.push(makeIpeOp(b => !b, [2, 4]));
+    assert.deepEqual(ops.selected(), [2, 4]);
+    assert.equal(ops.at(1), false);
+    assert.equal(ops.at(2), true);
+    assert.equal(ops.at(3), true);
+    assert.equal(ops.at(4), false);
+    assert.equal(ops.at(5), false);
+    ops.push(makeIpeOp(b => true, [4, 6]));
+    assert.deepEqual(ops.selected(), [2, 6]);
+    ops.push(makeIpeOp(b => false, [3, 4]));
+    assert.deepEqual(ops.selected(), [2, 3, 4, 6]);
+
+    ops.pop();
+    assert.deepEqual(ops.selected(), [2, 6]);
+    ops.pop();
+    assert.deepEqual(ops.selected(), [2, 4]);
+    ops.pop();
+    assert.deepEqual(ops.selected(), []);
+    ops.pop();
+    assert.deepEqual(ops.selected(), []);
+    assert.equal(ops.size(), 0, "size test");
+  });
+
+  QUnit.test( "ipe_storage selection state test", function( assert ) {
+    var ops = new IpeStorage();
+    var sel = new multiselect.SelectionState(new IpeOrderedGeometry(10),
+                                             undefined,
+                                             false,
+                                             10,
+                                             new IpeStorage());
+    sel.click(3);
+    sel.shiftClick(6);
+    assert.deepEqual(sel.selected(), [3, 7]);
+    sel.cmdClick(1);
+    assert.deepEqual(sel.selected(), [1, 2, 3, 7]);
+    sel.cmdClick(5);
+    assert.deepEqual(sel.selected(), [1, 2, 3, 5, 6, 7]);
+    sel.shiftClick(4);
+    assert.deepEqual(sel.selected(), [1, 2, 3, 4, 6, 7]);
+  });
+  
+                                 
+                                 
+#+END_SRC
+
+# FIXME Add tests for equalDomains etc.
+
+* Example Selection Geometry
+
+#+NAME: ipe-ordered-geometry
+#+BEGIN_SRC js
+// size is the number of elements
+var IpeOrderedGeometry = function (size) {
+  multiselect.DefaultGeometry.call(this);
+  this._size = size;
+};
+
+IpeOrderedGeometry.prototype = Object.create(multiselect.DefaultGeometry.prototype);
+IpeOrderedGeometry.prototype.constructor = IpeOrderedGeometry;
+
+IpeOrderedGeometry.prototype.size = function() { return this._size; }
+
+// retain only the anchor and the active end, ignore null points
+IpeOrderedGeometry.prototype.extendPath = function(path, vp) {
+  if (vp === null) return null;
+  if (path.length === 2) path.pop();
+  path.push(vp);
+};
+
+// selection domain is the range between anchor and active end 
+IpeOrderedGeometry.prototype.selectionDomain = function (spath) {
+  if (spath.length === 0) return ipe_encode([]);
+  var b = Math.max(0, Math.min(spath[0], spath[spath.length-1]));
+  var e = Math.min(this.size()-1, Math.max(spath[0], spath[spath.length-1]));
+  return ipe_encode_range(b, e+1);
+};
+
+// iterate from 0 to size-1
+IpeOrderedGeometry.prototype.filter = function (predicate) {
+  var b = [];
+  for (var i = 0; i < this.size(); ++i) b[i] = predicate(i);
+  return ipe_encode(b);
+};
+#+END_SRC
+
+#+NAME: ipe-exports
+#+BEGIN_SRC js
+exports.IpeStorage = IpeStorage;
+exports.IpeOrderedGeometry = IpeOrderedGeometry;
+#+END_SRC
+
+#+NAME: ipe-oredered-geometry-test
+#+BEGIN_SRC js
+  QUnit.test( "ipe ordered geometry test", function( assert ) {
+    var g = new IpeOrderedGeometry(10);
+
+    assert.deepEqual(g.selectionDomain([3, 6]), [3, 7]);
+    assert.deepEqual(g.selectionDomain([6, 3]), [3, 7]);
+    assert.deepEqual(g.selectionDomain([6, 100, 22, 2, 3]), [3, 7]);
+    assert.deepEqual(g.selectionDomain([]), []);
+
+    assert.deepEqual(g.filter((i) => i == 7 || i == 8), [7, 9]);
+  });
+#+END_SRC
+
+* File local variables                                     :ARCHIVE:noexport:
+  
+# Local Variables:
+# mode: org
+# org-html-postamble: nil
+# org-babel-use-quick-and-dirty-noweb-expansion: t
+# End:
+
+
+
+
+
+
+#  LocalWords:  noexport msjs MultiselectJS Jaakko Järvi num toc todo
+#  LocalWords:  LaTeX pri html postamble stylesheet css href DOCTYPE
+#  LocalWords:  xhtml src overline monospace indexable multi GUIs dom
+#  LocalWords:  newcommand mathsf selset mathbf inds subseteq mapsto
+#  LocalWords:  notin indices ldots circ mathit selectionDomain FIXME
+#  LocalWords:  EcmaScript js API nodejs makeEmptySet makeEmptyMap ok
+#  LocalWords:  isEmpty isSingleton firstKey equalKeys setUnion noweb
+#  LocalWords:  setSymmetricDifference nd bool tt constness fn func
+#  LocalWords:  makeSelectionMapping multiselect arrayEquals makeOp
+#  LocalWords:  makeOpComposition ith encodings eval cdots mathtt sel
+#  LocalWords:  texttt bmap lastOp removeIndex SelectionState maxUndo
+#  LocalWords:  coordinateSystem boolean maxOps undoable spath tuple
+#  LocalWords:  redoStack addEmptyPair isSelected getter selectedMap
+#  LocalWords:  cmdClick shiftClick ps vp pointToPath stripEmptyPair
+#  LocalWords:  cmd onSelectedIndex tmp numberOfOps vps extendPath ss
+#  LocalWords:  onSelected onElement emptyPairOnTop queuedCommand dir
+#  LocalWords:  commandQueue opertationQueue scheduleKeepLast pred hs
+#  LocalWords:  getters acquireCursor shiftSpace VerticalCS kbd dg 
+#  LocalWords:  cmdSpace nop deepEqual DefaultGeometry mpoint typeof
+#  LocalWords:  vpoint pre defaultPath subsequence activeEnd keypress
+#  LocalWords:  defaultCursor upto boundToElement resizing init undos
+#  LocalWords:  redostack setTimeout setProperty namespace padline
+#  LocalWords:  charset utf qunit QUnit reposition args stateful oldJ

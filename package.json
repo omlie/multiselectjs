@@ -17,12 +17,16 @@
     "test/"
   ],
   "scripts": {
+    "postinstall": "mkdir -p dist",
     "build-debug": "node_modules/.bin/browserify js/multiselect.js -d -s multiselect > dist/multiselect.debug.js",
     "build-no-debug": "node_modules/.bin/browserify js/multiselect.js -s multiselect > dist/multiselect.js",
-    "build-ord-geom": "node_modules/.bin/browserify js/ordered_geometries.js -d -s multiselect_ordered_geometries > dist/multiselect_ordered_geometries.js",
-    "build-dom-geom": "node_modules/.bin/browserify js/dom_geometries.js -d -s multiselect_dom_geometries > dist/multiselect_dom_geometries.js",
-    "build": "npm run build-debug && npm run build-no-debug",
-    "test": "open test/testindex.html"
+    "build-ord-geom": "node_modules/.bin/browserify js/ordered_geometries.js -s multiselect_ordered_geometries > dist/multiselect_ordered_geometries.js",
+    "build-dom-geom": "node_modules/.bin/browserify js/dom_geometries.js -s multiselect_dom_geometries > dist/multiselect_dom_geometries.js",
+    "build-html-geom": "node_modules/.bin/browserify js/html_geometries.js -s multiselect_html_geometries > dist/multiselect_html_geometries.js",
+    "build-ipe": "node_modules/.bin/browserify js/ipe_storage.js -s multiselect_ipe > dist/multiselect_ipe.js",
+    "build-utilities": "node_modules/.bin/browserify js/utilities.js -s multiselect_utilities > dist/multiselect_utilities.js",
+    "build": "npm run build-debug && npm run build-no-debug && npm run build-ipe",
+    "build-all": "npm run build && npm run build-ord-geom && npm run build-dom-geom && npm run build-html-geom && npm run build-utilities"
   },
   "repository": {
     "type": "git",
@@ -31,8 +35,8 @@
   "author": "Jaakko Järvi",
   "license": "MIT",
   "devDependencies": {
-    "browserify": "^11.0.1",
-    "jquery": "^2.1.0",
+    "browserify": "^16.5.0",
+    "jquery": "^3.4.1",
     "qunitjs": "^1.16.0"
   },
   "dependencies": {},

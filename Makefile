@@ -1,38 +1,58 @@
+define INFOTEXT
+Targets:
+  help         - display this text
+  dependencies - download and install necessary js packages
+  dist         - build multiselectjs distribution
+  test	       - run tests
+  docs         - build docs, tutorial
+  clean        - remove generated/built files
+endef
+
+export INFOTEXT
+
+help:
+	@echo "$$INFOTEXT"
+
+.PHONY: dirs dist tangle docs pages test
+
 EMACS := emacs
 
 LIBRARY_ORGS := \
 	org/multiselect_library.org \
 	org/selection_geometries.org \
-#	org/extras.org  # currently not used
-
-LIBRARY_TANGLED := $(LIBRARY_ORGS:.org=.tangled)
+	org/ipe.org 
 
 # files generated from source org files
-LIBRARY_DOCS := $(LIBRARY_ORGS:.org=.html)
+LIBRARY_HTMLS := $(LIBRARY_ORGS:.org=.html)
+LIBRARY_TANGLED := $(LIBRARY_ORGS:.org=.tangled)
+# .tangled are just empty marker files for the make file
 
-# other documentation
-OTHER_DOCS := \
-	org-docs/index/index.html \
-	org-docs/tutorial/tutorial.html \
-	org-docs/api_reference/api_reference.html
+# Generated documentation
+DOCS_ORGS := \
+	org-docs/index.org \
+	org-docs/tutorial/tutorial.org \
+	org-docs/api_reference/api_reference.org
+DOCS_HTMLS := $(DOCS_ORGS:.org=.html)
+DOCS_TANGLED := $(DOCS_ORGS:.org=.tangled)
 
 
-.PHONY: dist tangle docs pages test
-
-# deployable scripts
-DIST_SCRIPTS := \
+# deployable js
+DIST_JS := \
 	dist/multiselect.js \
 	dist/multiselect.debug.js \
 	dist/multiselect_ordered_geometries.js \
-	dist/multiselect_dom_geometries.js
+	dist/multiselect_dom_geometries.js \
+	dist/multiselect_ipe.js
 
-dist: $(DIST_SCRIPTS)
+dependencies:
+	npm install
 
+$(DIST_JS): tangle $(LIBRARY_TANGLED)
 
-$(DIST_SCRIPTS): $(LIBRARY_TANGLED)
+dist: $(DIST_JS) 
 	npm run build
-	npm run build-ord-geom
-	npm run build-dom-geom
+
+docs: $(LIBRARY_HTMLS) $(DOCS_HTMLS)
 
 %.tangled: %.org
 	$(EMACS) --batch -l org-publish.el $< --eval "(org-tangle)"
@@ -41,68 +61,85 @@ $(DIST_SCRIPTS): $(LIBRARY_TANGLED)
 %.html: %.org %.tangled
 	$(EMACS) --batch -l org-publish.el $< --eval "(publish-org-to-html \".\")"
 
-tangle: $(LIBRARY_TANGLED)
+testmain: TESTFILE = file:///Users/jarvi/bgits/multiselect/test/testindex.html
+testmain: dist $(GEN_TEST)
+	osascript -e "$$RELOADER"
 
-GENERATED_TEST_FILES = \
-        test/testindex.html \
-        test/tests.js
+testipe: TESTFILE = file:///Users/jarvi/bgits/multiselect/test/ipetests.html
+testipe: tangle $(GEN_TEST)
+	osascript -e "$$RELOADER"
 
-test: dist $(GENERATED_TEST_FILES)
-	open test/testindex.html
+test: testmain testipe
 
-docs: $(OTHER_DOCS) $(LIBRARY_DOCS)
-	mkdir -p dist-docs/library
-	cp $(LIBRARY_DOCS) dist-docs/library
-	mkdir -p dist-docs/tutorial
-	cp $(GENERATED_TUTORIAL_FILES) dist-docs/tutorial
-	mkdir -p dist-docs/api_reference
-	cp $(GENERATED_API_REFERENCE_FILES) dist-docs/api_reference
-	mkdir -p dist-docs/index
-	cp $(GENERATED_INDEX_FILES) dist-docs/index
 
-pages: docs dist
-	rsync -v dist-docs/index/index.html ../multiselectjs-pages/index.html
-	mkdir -p ../multiselectjs-pages/docs
-	mkdir -p ../multiselectjs-pages/docs/tutorial
-	rsync -v dist-docs/tutorial/* ../multiselectjs-pages/docs/tutorial/
-	mkdir -p ../multiselectjs-pages/docs/api_reference
-	rsync -v dist-docs/api_reference/* ../multiselectjs-pages/docs/api_reference/
-	mkdir -p ../multiselectjs-pages/examples
-	mkdir -p ../multiselectjs-pages/examples/demo
-	rsync -v examples/demo/* ../multiselectjs-pages/examples/demo/
-	mkdir -p ../multiselectjs-pages/dist
-	rsync -v dist/multiselect.js ../multiselectjs-pages/dist
+# A script for reloading a particular file on chrome
 
-GENERATED_INDEX_FILES := org-docs/index/index.html
+define RELOADER
+set u to "$(TESTFILE)"
+tell application "Google Chrome"
+    repeat with w in windows
+        set i to 0
+        repeat with t in tabs of w
+            set i to i + 1
+            if URL of t is u then
+                set active tab index of w to i
+                set index of w to 1
+                tell t to reload
+                activate
+                return
+            end if
+        end repeat
+    end repeat
+    open location u
+    activate
+end tell
+endef
 
-GENERATED_TUTORIAL_FILES := org-docs/tutorial/tutorial.html \
-	org-docs/tutorial/example-1.html \
-	org-docs/tutorial/example-2.html \
-	org-docs/tutorial/example-3.html \
-	org-docs/tutorial/selection_concepts.png \
-	org-docs/tutorial/simple-selection-geometry.png \
-	org-docs/tutorial/fish.js
+export RELOADER
+reload:
+	osascript -e "$$RELOADER"
 
-GENERATED_API_REFERENCE_FILES := org-docs/api_reference/api_reference.html 
+# Variables for all generated files
+# These depend on the generated files nevertheless being committed in
 
-GENERATED_SOURCES = \
-	js/multiselect.js \
-	js/default_geometry.js \
-	js/ordered_geometries.js \
-	js/dom_geometries.js 
+# Anything committed in certain directories
+GEN_JS := $(shell git ls-files -- js | tr '\n' ' ')
+GEN_TEST := $(shell git ls-files -- test | tr '\n' ' ')
+GEN_DOCS := $(shell git ls-files -- org-docs | grep --invert-match \.org | tr '\n' ' ')
+# ignore .org files in org-docs and subdirectories, they are not generated
 
-# Anything committed in in the dist-docs directory
-DIST_DOCS := $(shell git ls-files -- dist-docs | tr '\n' ' ')
+# These are not committed, but they are generated
+GEN_DIST := dist\*.js
 
-track-generated-off:
-	git update-index --assume-unchanged $(GENERATED_SOURCES) $(GENERATED_TEST_FILES) $(DIST_DOCS) 
+GEN_TO_COMMIT = $(GEN_TEST) $(GEN_JS) 
 
-track-generated-on:
-	git update-index --assume-changed $(GENERATED_SOURCES) $(GENERATED_TEST_FILES) $(DIST_DOCS)
+# hide generated files from git until further notice
+hide:
+	git update-index --skip-worktree $(GEN_TO_COMMIT)
+
+# unhide generated files
+unhide:
+	git update-index --no-skip-worktree $(GEN_TO_COMMIT)
 
 clean:
 	rm -fr *~
-	rm -rf dist/*
-	rm -rf dist-docs/*
-	rm -rf js/*
+	rm -f $(GEN_JS) $(GEN_TEST) $(GEN_DIST)
 	rm -f $(LIBRARY_TANGLED) $(GENERATED_TEST_FILES)
+
+squeaky: clean
+	rm -f $(GEN_DOCS)
+
+
+# pages: docs dist
+# 	rsync -v dist-docs/index/index.html ../multiselectjs-pages/index.html
+# 	mkdir -p ../multiselectjs-pages/docs
+# 	mkdir -p ../multiselectjs-pages/docs/tutorial
+# 	rsync -v dist-docs/tutorial/* ../multiselectjs-pages/docs/tutorial/
+# 	mkdir -p ../multiselectjs-pages/docs/api_reference
+# 	rsync -v dist-docs/api_reference/* ../multiselectjs-pages/docs/api_reference/
+# 	mkdir -p ../multiselectjs-pages/examples
+# 	mkdir -p ../multiselectjs-pages/examples/demo
+# 	rsync -v examples/demo/* ../multiselectjs-pages/examples/demo/
+# 	mkdir -p ../multiselectjs-pages/dist
+# 	rsync -v dist/multiselect.js ../multiselectjs-pages/dist
+

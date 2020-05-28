@@ -1,3 +1,7 @@
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.multiselect_dom_geometries = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+var og = require("./ordered_geometries");
+
+},{"./ordered_geometries":3}],2:[function(require,module,exports){
 // This file is generated, do not edit
 // This file is generated, do not edit
 
@@ -659,3 +663,94 @@ exports.CMD = M_CMD;
 exports.SHIFT_CMD = M_SHIFT_CMD;
 exports.OPT = M_OPT;
 exports.SHIFT_OPT = M_SHIFT_OPT;
+
+},{}],3:[function(require,module,exports){
+var dg = require("./multiselect.js");
+// size is the number of elements
+var OrderedGeometry = function (size) {
+  dg.DefaultGeometry.call(this);
+  this._size = size;
+};
+
+OrderedGeometry.prototype = Object.create(dg.DefaultGeometry.prototype);
+OrderedGeometry.prototype.constructor = OrderedGeometry;
+
+OrderedGeometry.prototype.size = function() { return this._size; }
+
+// retain only the anchor and the active end, ignore null points
+OrderedGeometry.prototype.extendPath = function(path, vpoint) {
+  if (vpoint === null) return null;
+  if (path.length === 2) path.pop();
+  path.push(vpoint);
+};
+
+// selection domain is the range between anchor and active end 
+OrderedGeometry.prototype.selectionDomain = function (spath) {
+  var J = new Map();
+  if (spath.length === 0) return J;
+
+  var b = Math.max(0, Math.min(dg.anchor(spath), dg.activeEnd(spath)));
+  var e = Math.min(this.size()-1, Math.max(dg.anchor(spath), dg.activeEnd(spath)));
+  for (var i = b; i<=e; ++i) J.set(i, true);
+  return J; 
+};
+
+// iterate from 0 to size-1
+OrderedGeometry.prototype.filter = function (predicate) {
+  var J = new Map();
+  for (var i = 0; i < this.size(); ++i) if (predicate(i)) J.set(i, true);
+  return J;
+};
+
+exports.OrderedGeometry = OrderedGeometry;
+var VerticalGeometry = function (size) {
+  OrderedGeometry.call(this, size);
+};
+
+VerticalGeometry.prototype = Object.create(OrderedGeometry.prototype);
+VerticalGeometry.prototype.constructor = VerticalGeometry;
+
+VerticalGeometry.prototype.step = function (dir, vpoint) {
+  switch (dir) {
+    case dg.UP: return Math.max(0, vpoint-1);
+    case dg.DOWN: return Math.min(this.size()-1, vpoint+1);
+    default: return vpoint;
+  }
+};
+
+VerticalGeometry.prototype.defaultCursor = function (dir) {
+  switch (dir) {
+  case dg.UP: return this.size()-1;
+  case dg.DOWN: return 0; 
+  default: return undefined;
+  }
+};
+
+exports.VerticalGeometry = VerticalGeometry;
+var HorizontalGeometry = function (size) {
+  OrderedGeometry.call(this, size);
+};
+
+HorizontalGeometry.prototype = Object.create(OrderedGeometry.prototype);
+HorizontalGeometry.prototype.constructor = HorizontalGeometry;
+
+HorizontalGeometry.prototype.step = function (dir, vpoint) {
+  switch (dir) {
+    case dg.LEFT: return Math.max(0, vpoint-1);
+    case dg.RIGHT: return Math.min(this.size()-1, vpoint+1);
+    default: return vpoint;
+  }
+};
+
+HorizontalGeometry.prototype.defaultCursor = function (dir) {
+  switch (dir) {
+  case dg.LEFT: return 0; 
+  case dg.RIGHT: return this.size()-1;
+  default: return undefined;
+  }
+};
+
+exports.HorizontalGeometry = HorizontalGeometry;
+
+},{"./multiselect.js":2}]},{},[1])(1)
+});

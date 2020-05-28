@@ -1,10 +1,15 @@
-* Export configuration                                             :noexport:
+#+SETUPFILE: org-settings.org
+#+TITLE:     {{{msjs}}} --- Documentation for Source Code
+#+AUTHOR:    Jaakko Järvi
+#+EMAIL:     jarvi@cse.tamu.edu
+#+DATE:      
+#+OPTIONS: toc:nil
 
-  #+SETUPFILE: org-settings.org
-  #+TITLE:     {{{msjs}}} --- ~multiselect_library.org~
-  #+AUTHOR:    Jaakko Järvi
-  #+EMAIL:     jarvij@gmail.com
-  #+DATE:      
+#+BEGIN_EXPORT html
+<p class="author"><b>Jaakko Järvi (<a href="mailto:jarvi@cse.tamu.edu">jarvi@cse.tamu.edu</a>), Sean Parent</b></p>
+#+END_EXPORT
+
+#+TOC: headlines 3
 
 * Introduction
   
@@ -59,10 +64,10 @@
 
 A primitive selection operation $\esp{f}{J}$ can be applied to a
 selection mapping $s$ to obtain a new selection mapping
-$\esp{f}{J}(s)$.  Selection operations compose: starting from
-the "no elements selected" selection mapping $e: I \to \selset{}, i
-\mapsto \false$, the selection mapping that results after applying a series
-of primitive selection operations $\esp{f_1}{J_1}, \esp{f_2}{J_2},
+$\esp{f}{J}(s)$.  Selection operations compose: starting from the "no
+elements selected" selection mapping $e: I \to \selset{}, i \mapsto
+\false$, the selection mapping that results after applying a series of
+primitive selection operations $\esp{f_1}{J_1}, \esp{f_2}{J_2},
 \ldots, \esp{f_n}{J_n}$ is
 
 \begin{equation*}
@@ -78,231 +83,68 @@ selected if $\mathit{ops}(s_b)(i) = \true$, and not selected if it is
 $\false$.
 
 Various selection commands, triggered by mouse or keyboard events,
-impact the selection mapping by adding new selection
-operations to $\mathit{ops}$, or by replacing or removing the most
-recently added operation(s). The least recently added operation can also
-be removed with its effect "baked" into the base selection mapping
-permanently. This baking operation changes both $\mathit{ops}$ to a
-new composition $\mathit{ops}'$ and $s_b$ to a new base selection
-mapping $s'_b$, but the current selection mapping observed by the user
-does not change. That is, $\mathit{ops}(s_b) = \mathit{ops}'(s'_b)$.
+impact the selection mapping by adding new selection operations to
+$\mathit{ops}$, or by replacing or removing the most recently added
+operation(s). The selection domain of the most recently added
+operation is the /active selection domain/.  The least recently added
+operation can also be removed with its effect "baked" into the base
+selection mapping permanently. This baking operation changes both
+$\mathit{ops}$ to a new composition $\mathit{ops}'$ and $s_b$ to a new
+base selection mapping $s'_b$, but the current selection mapping
+observed by the user does not change. That is, $\mathit{ops}(s_b) =
+\mathit{ops}'(s'_b)$.
 
 User commands indicate points in the /mouse coordinate space/.  It is
-the task of a /selection geometry/ to interpret how sequences of these
-points correspond to element indices. For this, a selection geometry
-defines two functions: ~m2v~ to translate a single point in the mouse
-coordinate space into a point in the /selection space/, and
+the task of a /selection geometry/ object to interpret how sequences
+of these points correspond to element indices. For this, a selection
+geometry defines two functions: ~m2v~ to translate a single point in
+the mouse coordinate space into a point in the /selection space/, and
 ~selectionDomain~ to translate a path of selection space points, the
-/selection path/, into a set of element indices, the /selection
-domain/. Each user command modifies the current selection path. The
+/selection path/, into a set of element indices, the selection
+domain. Each user command modifies the current selection path. The
 first element of the a selection path is called the /anchor/, the last
-the /active end/. 
+the /active end/.
 
+Finally, as described above, the selection state of an element $i$ is
+$\mathit{ops}(s_b)(i)$.  In practice, the function application
+$\mathit{ops}(s_b)$ is not executed every time the selection state of
+some index is needed, but rather the library maintains the result of
+$\mathit{ops}(s_b)$ in a data structure that modifies both
+$\mathit{ops}$ and $s_b$ as necessary.  Further, the library defines
+an API that allows one to redefine how $\mathit{ops}(s_b)$ is
+represented.
 
-** Code conventions
+** Code conventions and utilities
 
 Member variables and functions that start with an underscore are
 intended to be private to the class they are defined in. Client code
 should not refer to such members.
 
-** Utility functions
+ECMAScript 6 allows default parameters in functions but the browsers
+do not yet widely support them. Therefore the follwing helper
+function.
 
-*** Maps and sets
-    :PROPERTIES:
-    :CUSTOM_ID: sec-maps-and-sets
-    :END:
-
-Selection mappings and selection domains are represented using
-JavaScript's built-in ~Set~ and ~Map~ types. These are features of
-ECMAScript 6 and they are already supported by modern browsers.  The benefit of
-using ~Set~ and ~Map~ over JavaScript's built-in property maps is that
-~Set~ and ~Map~ accept any types as keys, whereas property maps' keys
-are strings.  Object references as keys are convenient. For example, a
-~Map~ from object references to objects is a natural indexed family
-for a set of DOM-elements. The order of iteration of the elements
-in ~Map~ and ~Set~ is predefined to be the order in which the elements
-are inserted to the collection.
-
-We use a few helper functions to deal with sets and maps.
-
-#+NAME: set-and-map-functions
-#+BEGIN_SRC js 
-  function makeEmptySet() { return new Set(); }
-  function makeEmptyMap() { return new Map(); }
-
-  function isEmpty(collection) { return collection.size === 0; }
-  function isSingleton(collection) { return collection.size === 1; }
-
-  function firstKey(collection) {  
-    // The body should be:
-    //   return collection.keys().next().value; 
-    // but Safari 8 does not support .next, therefore the workarounds below
-
-    if (typeof collection.keys().next === 'function') {
-      return collection.keys().next().value;
-    } else {
-      var it = collection.keys();
-      for (var v of it) return v;
-      return undefined;
-    }
-  }
-
-  function copySet (s) { 
-    var s2 = makeEmptySet();
-    s.forEach(function (key) { s2.add(key); });
-    return s2;
-  }
-
-  function copyMap (s) { 
-    var s2 = makeEmptyMap();
-    s.forEach(function (value, key) { s2.set(key, value); });
-    return s2;
-  }
-#+END_SRC
-
-The ~firstKey~ function returns the first key of a collection in
-insertion order, or ~undefined~ if the collection is empty. The
-~isEmpty~, ~isSingleton~, and ~firstKey~ functions work for both ~Set~
-and ~Map~ types.
-
-The ~equalKeys~ function implements set equality between two ~Set~ objects, 
-and set equality of keys between two ~Map~ objects. 
-
-#+NAME: equal-keys
+#+NAME: or-default
 #+BEGIN_SRC js
-  function equalKeys(a, b) { 
-    if (a.size !== b.size) return false;
-    for (var i of a.keys()) if (!b.has(i)) return false;
-    return true;
-  }
+  function or_default(a, v) { return a !== undefined ? a : v; }
 #+END_SRC
 
-The ~setUnion~ takes zero or more collections as arguments, 
-and returns the union of their keys as a ~Set~:
+* Representing selections
 
-#+NAME: set-union
-#+BEGIN_SRC js
-  function setUnion () {
-    var s = makeEmptySet();
-    for (var i=0; i<arguments.length; ++i) {
-       for (var j of arguments[i].keys()) s.add(j);
-    }
-    return s;
-  }
-#+END_SRC
+The library is parameterized over (1) the selection geometry; (2) how
+it represents the domain of primitive selection operations, i.e., the
+set $J$ in $\esp{f}{J}$; and (3) how it (jointly) represents the
+primitive selection operation composition and the base selection,
+i.e., the value $\textit{ops}(s_b)$.  To give a name for this third
+parameter, we refer to it as the /selection storage/.
 
-The ~mapSymmetricDifference~ computes the symmetric difference of the
-keys of the collections ~left~ and ~right~ as a ~Map~. The keys of the
-result are the elements that belong to exactly one of ~left~ and
-~right~. The values for keys that only belong to ~left~ are set to
-~leftValue~, and those to ~right~ to ~rightValue~.
+These three parameters must be compatible with each other.
+Concretely, the objects that represent selection domains attached to
+primitive selection operations are constructed by the selection
+geometry's ~selectionDomain~ function. This representation must be the
+same representation that selection storage uses.
 
-#+NAME: map-symmetric-difference
-#+BEGIN_SRC js
-  function mapSymmetricDifference (left, right, leftValue, rightValue) {
-    var s = makeEmptyMap();
-    for (var i of left.keys()) if (!right.has(i)) s.set(i, leftValue);
-    for (var i of right.keys()) if (!left.has(i)) s.set(i, rightValue);
-    return s; 
-  }
-#+END_SRC
-
-*** Utilities scrap                                                :noexport:
-
-The ~default_geometry.hs~ has the basic utility functions and
-definitions needed to write the default geometry and perhaps
-other geometries. It exports them, but then we also make them
-directly defined within the ~multiselect.js~ module, because the utilities
-are also used throughout the multiselect library.
-Almost all of the utilities will be re-exported by the multiselect module.
-
-#+NAME: include-default-geometry
-#+BEGIN_SRC js :exports none :noweb yes
-  <<default-geometry>>
-  <<geometry-directions>>
-  <<geometry-utilities>>
-#+END_SRC
-
-#+NAME: import-default-geometry
-#+BEGIN_SRC js :exports none :noweb yes
-  var dg = require("./default_geometry.js");
-
-  var DefaultGeometry = dg.DefaultGeometry;
-  var anchor = dg.anchor;
-  var activeEnd = dg.activeEnd;
-
-  var makeEmptyMap = dg.makeEmptyMap;
-  var makeEmptySet = dg.makeEmptySet;
-
-  var isEmpty = dg.isEmpty;
-  var isSingleton = dg.isSingleton;
-  var firstKey = dg.firstKey;
-  var copySet = dg.copySet;
-  var copyMap = dg.copyMap;
-
-  var UP = dg.UP;
-  var DOWN = dg.DOWN;
-  var LEFT = dg.LEFT;
-  var RIGHT = dg.RIGHT;
-  var NO_DIRECTION = dg.NO_DIRECTION;
-#+END_SRC
-
-#+NAME: utilities
-#+BEGIN_SRC js :exports none :noweb yes
-  <<equal-keys>>
-  <<set-union>>
-  <<map-symmetric-difference>>
-  <<modifier-keys>>
-#+END_SRC
-
-*** Utilities tests                                        :noexport:ARCHIVE:
-
-#+NAME: utilities-tests
-#+BEGIN_SRC js :exports none :noweb yes
-  test("Utilities tests", function (t) {
-    
-    var s = makeEmptySet();
-    var m = makeEmptyMap();
-
-    t.ok(isEmpty(s), "isEmpty 1");
-    t.ok(isEmpty(m), "isEmpty 2");
-
-    t.ok(!isSingleton(s), "isSingleton 1");
-    t.ok(!isSingleton(m), "isSingleton 2");
-
-    t.equal(firstKey(s), undefined, "firstKey 1");
-    t.equal(firstKey(m), undefined, "firstKey 2");
-
-    t.ok(multiselect.detail.equalKeys(s, m), "equalKeys 1");
-
-    // add 1st elem to both
-    s.add(1); m.set(1, true);
-
-    t.ok(isSingleton(s), "isSingleton 3");
-    t.ok(isSingleton(m), "isSingleton 4");
-
-    t.ok(!isEmpty(s));
-    t.ok(!isEmpty(m));
-
-    t.equal(firstKey(s), 1, "firstKey 3");
-    t.equal(firstKey(m), 1, "firstKey 4");
-
-    // add 2nd elem to both
-    s.add(2); m.set(2, true);
-    t.ok(!isSingleton(s)), "not singleton 1";
-    t.ok(!isSingleton(m)), "not singleton 2";
-
-    t.equal(firstKey(s), 1, "firstKey 5");
-    t.equal(firstKey(m), 1, "firstKey 6");
-        
-    t.ok(multiselect.detail.equalKeys(s, m), "equalKeys 2");
-
-    // add 3rd to s
-    s.add(3);
-    t.ok(!multiselect.detail.equalKeys(s, m), "not equalKeys");
-  });
-#+END_SRC
-* Selection functions 
+** Selection functions 
     :PROPERTIES:
     :CUSTOM_ID: sec-selection-functions
     :END:
@@ -327,21 +169,342 @@ arbitrary functions of type ~bool~ $\to$ ~bool~ but determining
 constness based on the ~constant~ flag and function equality via
 object identity comparisons is even easier.
 
-* Selection mapping
+** Primitive selection operations
+   :PROPERTIES:
+   :CUSTOM_ID: sec-primitive-selection-operations
+   :END:
+
+The ~makeOp(f, domain)~ factory function constructs a primitive
+selection operation.  Its parameters are:
+
+  - ~f~ --- the selection function (one of ~tt~, ~ff~, ~id~, or ~not~).
+  - ~domain~ --- the selection domain. The type of this
+    value is not dictated by the library, but it 
+    must be compatible with the selection geometry and with
+    the selection storage (see Section [[#sec-selection-storage]]).
+    Domain objects are constructed by the selection geometry's 
+    ~selectionDomain~ function.
+
+Both arguments to ~makeOp~ are stored as members of the resulting
+object, as ~f~ and ~domain~.
+
+#+NAME: primitive-selection-operation
+#+BEGIN_SRC js 
+  function makeOp (f, domain) { return { f: f, domain: domain }; }
+#+END_SRC
+
+** Selection storage
+    :PROPERTIES:
+    :CUSTOM_ID: sec-selection-storage
+    :END:
+
+The selection storage maintains the composition of selection
+operations and the base selection mapping.  It represents the value
+$\textit{ops}(s_b)$. Even though in our formal treatment of
+multi-selection the $\textit{ops}$ composition and the base selection
+mapping $s_b$ are maintained separately, we combine them in our
+implementation, so that the client cannot modify them directly.  It is
+certainly possible to keep them separate, and our reference
+implementation internally does so. We are, however, not aware of use
+cases where in an arbitrary selection state the base selection mapping
+would have to be replaced by another one (i.e., in order to apply the
+current composition of primitive selection operations over another
+base selection mapping). This is why the selection storage API
+has no means to modify $s_b$ directly.
+
+*** Selection storage interface
+
+Let ~storage~ be a selection storage representing $\textit{ops}(s_b)$,
+~i~ an index to an element, $T_J$ the type used for representing
+domains of primitive selection operations, $J$ a selection domain of
+type $T_J$, and ~op~ a primitive selection operation whose domain is
+represented using $T_J$.  Then the following expressions must be
+valid, and they must have the semantics as described below:
+
+- ~storage.at(i)~
+  
+  Returns $\textit{ops}(s_b)(i)$.                                          
+
+- ~storage.selected()~ 
+
+  Returns the set of indices of the selected elements, that is $\{i
+  \in I\ |\ \textit{ops}(s_b)(i)\}$, as an object of type $T_J$.
+
+- ~storage.push(op, changed)~   
+
+  Adds a new primitive selection operation ~op~ to the front of the
+  op-composition.  If ~storage~ represents $\textit{ops}(s_b)$ before
+  the call, after the call it represents $(\textit{op} \circ
+  \textit{ops})(s_b)$. If ~changed~ is not ~undefined~, ~changed.value~
+  must at exit have a value that represents the set of indices whose
+  selection state changed (from ~true~ to ~false~ or vice versa).
+  If ~changed.value~ is defined when entering the function, the 
+  indices it represents are considered to be the indices changed
+  by a preceding call to ~push~ or ~pop~, and the joint effect is
+  tracked. If $J_p$ are those indices
+  and $J_c$ the indices changed by the current ~push~ operation, 
+  then the resulting ~changed.value~ is $J_c \setminus J_p$.
+  How ~changed.value~ is represented is up to the selection storage.
+
+- ~storage.pop(changed)~   
+
+  /Precondition:/ ~storage.size() >= 1~.
+
+  Removes a primitive selection operation from the front of the
+  op-composition. If ~storage~ represents $(\textit{op} \circ
+  \textit{ops})(s_b)$ before the call, after the the call it represents
+  $\textit{ops}(s_b)$.  The meaning and requirements for the ~changed~
+  parameter are the same as in the ~push~ function.
+
+  /Returns/ the removed primitive selection operation.
+
+- ~storage.top()~
+
+  /Precondition:/ ~storage.size() >= 1~.
+
+  /Returns/ a reference to the first (most recently pushed) primitive
+  selection operation.  That is, if ~storage~ represents $(\textit{op}
+  \circ \textit{ops})(s_b)$, returns $\textit{op}$.
+
+- ~storage.top2()~
+
+  /Precondition:/ ~storage.size() >= 2~.
+  
+  /Returns/ a reference to the second (second most recently pushed)
+  primitive selection operation.  That is, if ~storage~ represents
+  $(\textit{op}_a \circ \textit{op}_b \circ \textit{ops})(s_b)$, returns
+  $\textit{op}_b$.
+
+- ~storage.size()~
+
+  /Returns/ the number of primitive selection operations in the
+  composition represented by $\textit{ops}$. (If $\textit{ops}$ is
+  empty, all of the selection state is represented in the base
+  selection mapping $s_b$ portion of $\textit{ops}(s_b)$.)
+
+- ~storage.bake()~
+
+  Removes one primitive selection operation (the least recently
+  pushed), applies it to the base selection mapping, and makes the
+  result the new base. That is, if ~storage~ represents
+  $(\textit{ops} \circ \textit{op})(s_b)$, it is modified to represent
+  $\textit{ops}(s'_b)$, where $s'_b = \textit{op}(s_b))$. The function
+  has no effect when ~storage.size() == 0~.
+
+- ~storage.onSelected(J)~
+
+  Returns ~true~ if the selection domain ~J~ is considered to 
+  indicate a selected element, ~false~ otherwise.
+  A typical implementation would return ~storage.at(i)~ if
+  ~i~ is the only element in ~J~, otherwise ~false~.
+
+- ~storage.modifyStorage(cmd)~ 
+
+  The ~cmd~ parameter is a /command/ that indicates how ~storage~ should
+  be modified.  What commands are accepted and what their
+  effects are is defined by the client.
+  Example functionality to provide through this method include
+  reacting to removing indices, adding indices, and reordering
+  indices (if they are stored in a data structure where
+  ordering matters).
+
+- ~storage.equalDomains(J1, J2)~
+
+  Returns ~true~ if ~J1~ and ~J2~ are equivalent sets of indices.
+
+- ~storage.isEmpty(J)~
+
+  Returns ~true~ if ~J~ is an empty set of indices.
+
+** Default selection storage
+
+By default, the library uses JavaScript's built-in ~Set~ type for the base
+selection mapping and ~Map~ type for selection domains.  These are
+features of ECMAScript 6 and supported by modern
+browsers.  The benefit of using ~Set~ and ~Map~ over JavaScript's
+built-in property maps is that ~Set~ and ~Map~ accept any types as
+keys, whereas property maps' keys are strings.  Object references as
+keys are convenient. For example, a ~Map~ from object references to
+objects is a natural indexed family for a set of DOM-elements. The
+order of iteration of the elements in ~Map~ and ~Set~ is predefined to
+be the order in which the elements are inserted to the collection.
+
+*** Maps and sets utility functions
+    :PROPERTIES:
+    :CUSTOM_ID: sec-maps-and-sets
+    :END:
+
+We use a few helper functions to deal with sets and maps.
+
+#+NAME: set-and-map-functions
+#+BEGIN_SRC js 
+  function isEmpty(collection) { return collection.size === 0; }
+  function isSingleton(collection) { return collection.size === 1; }
+
+  function firstKey(collection) {  
+    // The body should be:
+    //   return collection.keys().next().value; 
+    // but Safari 8 does not support .next, therefore the workarounds below
+
+    if (typeof collection.keys().next === 'function') {
+      return collection.keys().next().value;
+    } else {
+      var it = collection.keys();
+      for (var v of it) return v;
+      return undefined;
+    }
+  }
+
+  function equalKeys(a, b) { 
+    if (a.size !== b.size) return false;
+    for (var i of a.keys()) if (!b.has(i)) return false;
+    return true;
+  }
+#+END_SRC
+
+The ~firstKey~ function returns the first key of a collection in
+insertion order, or ~undefined~ if the collection is empty. The
+~isEmpty~, ~isSingleton~, and ~firstKey~ functions work for
+both ~Set~ and ~Map~ types. The ~equalKeys~ function implements set
+equality between two ~Set~ objects, and set equality of keys between
+two ~Map~ objects.
+
+*** Utilities tests                                        :noexport:ARCHIVE:
+
+#+NAME: utilities-tests
+#+BEGIN_SRC js :exports none :noweb yes
+  test("Utilities tests", function (t) {
+    
+    var s = new Set();
+    var m = new Map();
+
+    t.ok(isEmpty(s), "isEmpty 1");
+    t.ok(isEmpty(m), "isEmpty 2");
+
+    t.ok(!isSingleton(s), "isSingleton 1");
+    t.ok(!isSingleton(m), "isSingleton 2");
+
+    t.equal(firstKey(s), undefined, "firstKey 1");
+    t.equal(firstKey(m), undefined, "firstKey 2");
+
+    t.ok(equalKeys(s, m), "equalKeys 1");
+
+    // add 1st elem to both
+    s.add(1); m.set(1, true);
+
+    t.ok(isSingleton(s), "isSingleton 3");
+    t.ok(isSingleton(m), "isSingleton 4");
+
+    t.ok(!isEmpty(s));
+    t.ok(!isEmpty(m));
+
+    t.equal(firstKey(s), 1, "firstKey 3");
+    t.equal(firstKey(m), 1, "firstKey 4");
+
+    // add 2nd elem to both
+    s.add(2); m.set(2, true);
+    t.ok(!isSingleton(s)), "not singleton 1";
+    t.ok(!isSingleton(m)), "not singleton 2";
+
+    t.equal(firstKey(s), 1, "firstKey 5");
+    t.equal(firstKey(m), 1, "firstKey 6");
+        
+    t.ok(equalKeys(s, m), "equalKeys 2");
+
+    // add 3rd to s
+    s.add(3);
+    t.ok(!equalKeys(s, m), "not equalKeys");
+  });
+#+END_SRC
+
+*** Utilities scrap                                                :noexport:
+
+#+NAME: utilities
+#+BEGIN_SRC js :exports none :noweb yes
+  <<modifier-keys>>
+  <<or-default>>
+#+END_SRC
+
+*** Default base selection mapping
   :PROPERTIES:
   :CUSTOM_ID: sec-selection-mapping
   :END:
 
-The ~makeSelectionMapping()~ factory function creates a selection
-mapping.  This function object[fn:1] realizes a function from indices,
-the set $I$, to ~bool~.  The mapping is internally represented as a
-~Set~ whose elements are exactly those indices that map to ~true~.
+In our formalism, a primitive selection operation is a function of
+type $(I \to \selset) \to (I \to \selset)$. Concretely, however, the
+selection storage object implements this mapping, and how it is
+syntactically expressed may vary from one selection storage to
+another.
+
+The default selection storage uses a built-in ~Map~ for representing
+selection domains, and the following function to construct a function
+object of type $(I \to \selset) \to (I \to \selset)$ out of a
+primitive selection operation object.
+
+#+NAME: make-op-function
+#+BEGIN_SRC js 
+  function makeOpFunction (op) {
+    if (op.f.constant) {
+      return function (s) {
+        return function (i) {
+          return (op.domain.has(i)) ? op.f() : s(i);
+        }
+      }
+    } else {
+      return function (s) {
+        return function (i) {
+          return (op.domain.has(i)) ? op.f(s(i)) : s(i);
+        }
+      }
+    }
+  }
+#+END_SRC
+
+The function call operator of the selection operator object takes one
+of two definitions, based on whether ~f~ is a constant function or
+not; if ~f~ is constant, there is no need to access the previous state
+~s(i)~ if ~i~ is within the operator's ~domain~.
+
+*** Primitive selection operation tests                    :noexport:ARCHIVE:
+
+#+NAME: primitive-selection-operation-tests
+#+BEGIN_SRC js :exports none
+  test ("Primitive selection operation tests", function (t) {
+
+    var F = false, T = true;
+ 
+    var s = makeOpFunction(makeOp(tt, new Map()))(makeBaseSelectionMapping());
+    t.ok(arrayEquals([0, 1, 2, 3].map(s), 
+                     [F, F, F, F]), "empty domain");
+
+    s = makeOpFunction(makeOp(tt, dom(1, 3)))(s);
+    t.ok(arrayEquals([0, 1, 2, 3].map(s), 
+                     [F, T, F, T]), "true function");
+
+    s = makeOpFunction(makeOp(ff, dom(1, 3)))(s);
+    t.ok(arrayEquals([0, 1, 2, 3].map(s), 
+                     [F, F, F, F]), "false function");
+
+    s = makeOpFunction(makeOp(not, dom(1, 3)))(s);
+    t.ok(arrayEquals([0, 1, 2, 3].map(s), 
+                     [F, T, F, T]), "negation function");
+
+  });
+#+END_SRC
+
+The ~makeBaseSelectionMapping()~ factory function creates a function
+object[fn:1] that the library uses by default to represent the base
+selection mapping.  The function object is a mapping from
+indices, the set $I$, to ~bool~.  The mapping is internally
+represented as a ~Set~ whose elements are exactly those indices that
+map to ~true~.
 
 #+NAME: selection-mapping
-#+BEGIN_SRC js
-  function makeSelectionMapping () {
+#+BEGIN_SRC js :noweb strip-export 
+  <<make-op-function>>
 
-    var s = makeEmptySet();
+  function makeBaseSelectionMapping () {
+    var s = new Set();
 
     var func = function (i) { return s.has(i); };
 
@@ -349,10 +512,10 @@ the set $I$, to ~bool~.  The mapping is internally represented as a
       if (v === true) s.add(i); else s.delete(i); 
     }
 
-    func.selected = function() { return s.keys(); } 
+    func.selectedIndices = function() { return s.keys(); } 
 
     func.bake = function (op) {
-      var s2 = op(func);
+      var s2 = makeOpFunction(op)(func);
       op.domain.forEach(function(_, i) { func.set(i, s2(i)); });
     }
 
@@ -360,608 +523,610 @@ the set $I$, to ~bool~.  The mapping is internally represented as a
   }
 #+END_SRC
 
-The selection mapping function object has three member functions:
+Let ~s~ be a selection mapping object constructed 
+with the ~makeBaseSelectionMapping~ function, ~i~ an index
+of an element, ~v~ either ~true~ or ~false~, and ~op~ a primitive
+selection operation object.
 
-- ~set(i, v)~
+- ~s(i)~
+
+  Returns ~true~ if ~i~ is selected in ~s~, ~false~ if not.
+
+- ~s.set(i, v)~
   
   Sets the element ~i~ to value ~v~. After ~s.set(i, v)~, ~s(i) ===
   true~ if ~v === true~, otherwise ~s(i) === false~.
 
-- ~selected()~
+- ~s.selectedIndices()~
 
   Returns an ~Iterator~ of the entries in the set (the selected
   elements).  The elements are iterated in insertion order, which is
   what JavaScript's ~Set~ provides.
 
-- ~bake(op)~ 
+- ~s.bake(op)~ 
   
   Updates the selection mapping to the result of applying the
-  selection operation ~op~ to it. If ~op(s)~ realizes some mapping
-  $m$, after ~s.bake(op)~, ~s~ realizes that mapping $m$.
+  selection operation ~op~ to it. The ~op~ parameter is just a an
+  object with members ~f~ and ~domain~ as explained in Section
+  [[#sec-primitive-selection-operations]]. We use ~makeOpFunction(op)~ to
+  construct a function that maps a selection mapping to a new
+  selection mapping.  If ~makeOpFunction(op)(s)~ represents some
+  selection mapping $m$, after ~s.bake(op)~, ~s~ represents that
+  mapping $m$.
 
 [fn:1] By /function object/ we mean an object that can be called with
 the function call syntax. It can be stateful and have both member
 variables and member functions.
 
-** Baking tests                                            :noexport:ARCHIVE:
+*** Baking tests                                           :noexport:ARCHIVE:
 
 #+NAME: baking-tests
 #+BEGIN_SRC js :exports none :noweb yes
   test("Baking tests", function (t) {
 
-    var M = multiselect;
-
-    var D = M.detail;
-    var s = D.makeSelectionMapping();
+    var s = makeBaseSelectionMapping();
     var F = false, T = true;
     
-    s.bake(D.makeOp(D.tt, dom())); // select no elements
+    s.bake(makeOp(tt, dom())); // select no elements
     t.ok(arrayEquals([0, 1, 2, 3, 4].map(s),
                      [F, F, F, F, F]), "bake empty domain");
     
-    s.bake(D.makeOp(D.tt, dom(1, 3))); // select 1 and 3
-    t.ok(arrayEquals([0, 1, 2, 3, 4].map(s), 
+    s.bake(makeOp(tt, dom(1, 3))); // select 1 and 3
+    t.ok(arrayEquals([0, 1, 2, 3, 4].map(s),
                      [F, T, F, T, F]), "bake 1 and 3 true");
     
-    s.bake(D.makeOp(D.ff, dom(1, 2))); // deselect 1 and 2
+    s.bake(makeOp(ff, dom(1, 2))); // deselect 1 and 2
     t.ok(arrayEquals([0, 1, 2, 3, 4].map(s), 
                      [F, F, F, T, F]), "bake 1 and 2 false");
     
-    s.bake(D.makeOp(D.not, dom(1, 3))); // flip 1 and 3
+    s.bake(makeOp(not, dom(1, 3))); // flip 1 and 3
     t.ok(arrayEquals([0, 1, 2, 3, 4].map(s), 
                      [F, T, F, F, F]), "negate 1 and 3");
   });
 #+END_SRC
 
-* Selection operations
+*** Map-based selection storage
 
-The ~makeOp(f, domain)~ factory function constructs a selection
-operation.  Its parameters are:
+The ~MapStorage~ constructor creates a ~Map~-based selection storage
+object.  In this representation, the selection domain of a primitive
+selection operation is a ~Map~ object. Conceptually, however, a
+selection domain is a set; we take this set to be the set of all keys
+present in the map object.  The values in the map are used internally
+to implement a faster retrieval of the selection status of an element,
+as explained below.
 
-  - ~f~ --- the selection function (one of ~tt~, ~ff~, ~id~, or ~not~,
-    see Section [[#sec-selection-functions]]).
-  - ~domain~ --- the selection domain. This value is expected to 
-    be of type ~Map~, even though conceptually it is a set. The
-    selection domain as a set is all the keys in that ~Map~ object, regardless
-    of the value in that entry. Why selection domains are implemented as maps is explained
-    in Section [[#sec-composition]].
-
-Both arguments to ~makeOp~ are stored as members of the resulting (function) object,
-as ~f~ and ~domain~.
-
-#+NAME: primitive-selection-operation
-#+BEGIN_SRC js 
-  function makeOp (f, domain) {
-
-    var func;
-    if (f.constant) {
-      func = function (s) {
-        return function (i) {
-          return (domain.has(i)) ? f() : s(i);
-        }
-      }
-    } else {
-      func = function (s) {
-        return function (i) {
-          return (domain.has(i)) ? f(s(i)) : s(i);
-        }
-      }
-    }
-    
-    func.f = f;
-    func.domain = domain;
-
-    return func;
-  }
-#+END_SRC
-
-The function call operator of the selection operator object takes one
-of two of definitions, based on whether ~f~ is a constant function or
-not;  if ~f~ is constant, there is no need to access the previous
-state ~s(i)~ if ~i~ is within the operator's ~domain~.
-
-** Primitive selection operation tests                     :noexport:ARCHIVE:
-
-#+NAME: primitive-selection-operation-tests
-#+BEGIN_SRC js :exports none
-  test ("Primitive selection operation tests", function (t) {
-
-    var M = multiselect;
-    var D = M.detail;
-    var F = false, T = true;
- 
-    var s = D.makeOp(D.tt, makeEmptyMap())(D.makeSelectionMapping());
-    t.ok(arrayEquals([0, 1, 2, 3].map(s), 
-                     [F, F, F, F]), "empty domain");
-
-    s = D.makeOp(D.tt, dom(1, 3))(s);
-    t.ok(arrayEquals([0, 1, 2, 3].map(s), 
-                     [F, T, F, T]), "true function");
-
-    s = D.makeOp(D.ff, dom(1, 3))(s);
-    t.ok(arrayEquals([0, 1, 2, 3].map(s), 
-                     [F, F, F, F]), "false function");
-
-    s = D.makeOp(D.not, dom(1, 3))(s);
-    t.ok(arrayEquals([0, 1, 2, 3].map(s), 
-                     [F, T, F, T]), "negation function");
-
-  });
-#+END_SRC
-* Composition of selection operations
-  :PROPERTIES:
-  :CUSTOM_ID: sec-composition
-  :END:
-
-
-The function ~makeOpComposition~ creates a composition of 
-selection operations.  This function object is a selection operation
-itself, so applying it to a selection mapping produces a selection
-mapping. In symbols, if ~c~ is a composition and ~s~ a selection
-mapping, ~c(s)~ is also a selection mapping.
-
-#+NAME: op-composition
+#+NAME: map-storage
 #+BEGIN_SRC js :noweb no-export
-    function makeOpComposition () {
+    function MapStorage () {
+      this._ops = [];                
+      this._baked = makeBaseSelectionMapping();
 
-      var ops = [];                
-      var domain = makeEmptyMap(); 
-      var gen = 0;                                                    
+      this._domain = new Map(); 
+      this._gen = 0;         
+   }
 
-      var func = function (s) {
-        <<op-composition-function-call-operator-body>>
-      }
-     
-      func.domain = domain;
-      
-      // member functions of func
-      <<op-composition-push>>
-      <<op-composition-pop>>
-      <<op-composition-top>>
-      <<op-composition-top2>>
-      <<op-composition-shift>>
-      <<op-composition-size>>
-      <<op-composition-remove-index>>
-      
-      return func;
-    }
+   // member functions of func
+   <<map-storage-at>>
+   <<map-storage-selected>>
+   <<map-storage-push>>
+   <<map-storage-pop>>
+   <<map-storage-top>>
+   <<map-storage-top2>>
+   <<map-storage-size>>
+   <<map-storage-bake>>
+   <<map-storage-on-selected>>
+   <<map-storage-modify-storage>>
+   <<map-storage-equal-domains>>
+   <<map-storage-is-empty-domain>>
+
+   // helper functions
+   <<map-storage-diff-op>>
 #+END_SRC
 
-The composed selection operations are stored in the ~ops~
-array.  The keys of the ~domain~ map are the union of the domains
-of all selection operations in ~ops~. The counter ~gen~
-grows with each added selection operation. 
+The primitive selection operations in the composition are stored in
+the ~_ops~ array and the base selection mapping in the ~_baked~ variable.
 
-Assume the composition object represents the value $f \circ g \circ h$.
-Then ~ops~ is the array ~[h, g, f]~.  The selection status of an element $i$ in $(f \circ g
-\circ h)(s)$, where $s$ is the base selection mapping, could simply be
-determined by computing ~f(g(h(s)))(i)~. Often the result, however,
-does not depend on all functions in the composition. For example, if
-~f~'s selection function is constant and ~i~ belongs to ~f~'s domain,
-then ~f(g(h(s)))(i)~ is equal to ~f(s)(i)~. Or if ~i~ is not in ~f~'s
-or ~g~'s domain, then ~f(g(h(s)))(i)~ is equal to ~h(s)(i)~.  The
-composition object maintains extra information to avoid unnecessary
-evaluations. 
+The keys of the ~_domain~ map are the union of the
+domains of all selection operations in ~_ops~. The counter ~_gen~ grows
+with each added selection operation.
 
-The basic scheme is that ~domain~ maps each index ~i~ to the first
-selection operation whose domain includes ~i~, and the
-domain of that selection operation maps ~i~ to the next
-selection operation whose domain includes ~i~, and so
+Assume ~_ops~ represents the value $f \circ g \circ h$.  Then ~_ops~ is
+the array ~[h, g, f]~.  The selection status of an element $i$ in $(f
+\circ g \circ h)(s)$, where $s$ is the base selection mapping ~_baked~,
+could simply be determined by computing $f(g(h(s)))(i)$. Often the
+result, however, does not depend on all functions in the
+composition. For example, if $f$'s selection function is constant and
+$i$ belongs to $f$'s domain, then $f(g(h(s)))(i) = f(s)(i)$. Or if $i$
+is in neither $f$'s nor $g$'s domain, then $f(g(h(s)))(i) = h(s)(i)$.
+The storage object maintains extra information to avoid these unnecessary
+evaluations.
+
+The basic scheme is that ~_domain~ maps each index ~i~ to the first
+primitive selection operation whose domain includes ~i~, and the
+domain of that primitive selection operation maps ~i~ to the next
+primitive selection operation whose domain includes ~i~, and so
 forth. In more details:
 
-- If for some composition object ~domain.has(i)~ is true,
-  then ~ops[ops.length-1 - (gen - domain.get(i))]~ is the first
-  (counting backwards from the end of the array) selection
-  operation that defines a value for index ~i~.  If ~domain.has(i)~ is
-  false, then ~i~ does not belong to the domain of any of the
-  selection operators in ~ops~.  
+- If ~_domain.has(i)~ is
+  true, then ~_ops[_ops.length-1 - (gen - _domain.get(i))]~ is the first
+  (counting backwards from the end of the array) primitive selection operation
+  that defines a value for index ~i~.  If ~_domain.has(i)~ is false,
+  then ~i~ does not belong to the domain of any of the primitive selection
+  operations in ~_ops~.
 
-- The value of ~gen~ is increased with every addition of a 
-  selection operation to the composition. The purpose of ~gen~
-  is to avoid updating every element of ~domain~ when new operations
-  are added to ~ops~.
+- The value of ~_gen~ is increased with every addition of a primitive
+  selection operation to the composition. The purpose of ~_gen~ is to
+  avoid updating every element of ~_domain~ when new operations are
+  added to ~_ops~.
  
-- Assume ~ops[n]~ is the first selection operation that
+- Assume ~_ops[n]~ is the first primitive selection operation that
   defines ~i~.  If ~op~'s selection function ~f~ is not constant (it
   is ~id~ or ~not~), then to obtain the selection status of ~i~, ~i~'s
   prior status is needed. This prior status is determined by the
-  closest selection operation that has ~i~ in its domain,
-  which is found as follows.
-  The expression ~ops[n].domain.get(i)~ has
-  some integral value ~k~. The meaning of ~k~ is the distance in the
-  ~ops~ array to the closest entry that defines the selection status
-  of ~i~. In other words, ~ops[n-k].domain.has(i)~ is ~true~, and for
-  all ~0 < j < k~, ~ops[n-j].domain.has(i)~ is ~false~.  If ~k > n~,
-  ~i~ belongs to the domain of no prior primitive selection operation;
-  ~i~'s selection state is then ~s(i)~, determined only by the base
-  selection mapping ~s~.
+  closest selection operation that has ~i~ in its domain, which is
+  found as follows.  The expression ~_ops[n].domain.get(i)~ has some
+  integral value ~k~. The meaning of ~k~ is the distance in the ~_ops~
+  array to the closest entry that defines the selection status of
+  ~i~. In other words, ~_ops[n-k].domain.has(i)~ is ~true~, and for all
+  ~0 < j < k~, ~_ops[n-j].domain.has(i)~ is ~false~.  If ~k > n~, ~i~
+  belongs to the domain of no prior primitive selection operation;
+  ~i~'s selection state is then determined only by the base selection
+  mapping ~_baked~, as ~_baked(i)~.
 
-#  Note that when the selection function is constant (~tt~ or ~ff~),
-#  the ~ops~ composition need not be traversed further.  If no ~id~ or
-#  ~not~ selection functions are used anywhere in the composition, no
-#  more than one selection function is evaluated to determine the
-#  selection status of an element.
+The implementation of the ~at~ method takes advantage
+of the above encodings:
 
-The implementation of ~func~'s function call operator takes advantage
-of the above encodings. First, if an element ~i~ is not in the
-selection domain of some selection operation, the selection
-function of that operation is never evaluated when determining the
-selection status of ~i~. Second, if an element ~i~ is in the 
-domain of a selection operation whose selection function is
-constant, and that function is evaluated to find out the
-selection status of ~i~, then no further selection functions are
-invoked.
-
-#+CAPTION: ~<<op-composition-function-call-operator-body>>~
-#+NAME: op-composition-function-call-operator-body
+#+CAPTION: ~<<map-storage-at>>~
+#+NAME: map-storage-at
 #+BEGIN_SRC js :noweb strip-export
-  return function (i) {
-    return evaluate(domain.has(i) ? (ops.length-1) - (gen-domain.get(i)) : -1, i)(i);
-  }
+  MapStorage.prototype.at = function(i) { 
+    var self = this;
+    return evaluate(this._domain.has(i) ? (this._ops.length-1) - (this._gen-this._domain.get(i)) : -1, i)(i); 
 
-  // determine selection state of i but only access the elements 
-  // of ops (staring from ind) that have i in their domain
-  function evaluate(ind, i) {
-    if (ind < 0) return s; // i defined in the base selection mapping s
-    else {
-      var op = ops[ind];
-      return op(function (j) { return evaluate(ind - op.domain.get(i), j)(i); });
-      // the call to evaluate is wrapped to a lambda to make the call lazy.
-      // op will only call the lambda if op.f.constant is false
-    }
+    // determine selection state of i but only access the elements 
+    // of ops (staring from ind) that have i in their domain
+    function evaluate(ind, i) {
+       if (ind < 0) return self._baked; // i defined in the base selection mapping baked
+       else {
+         var op = self._ops[ind];
+         return op.applyOp(function (j) { return evaluate(ind - op.domain.get(i), j)(i); });
+         // the call to evaluate is wrapped to a lambda to make the call lazy.
+         // op will only call the lambda if op.f.constant is false.
+         // For explanation of applyOp, see the push function
+       }
+    } 
+ }
+#+END_SRC
+
+  - First, if an element ~i~ is not in the
+    selection domain of some selection operation, the selection
+    function of that operation is never evaluated when determining the
+    selection status of ~i~. 
+  - Second, if an element ~i~ is in the domain of a selection
+    operation whose selection function is constant, and that function
+    is evaluated to find out the selection status of ~i~, then no
+    further selection functions are invoked.
+
+
+The methods that the selection storage interface requires are implemented
+as follows:
+
+#+CAPTION: ~<<map-storage-selected>>~
+#+NAME: map-storage-selected
+#+BEGIN_SRC js 
+  MapStorage.prototype.selected = function () {
+    var J = new Map();
+    for (var i of this._baked.selectedIndices()) if (this.at(i)) J.set(i, true);
+    for (var i of this._domain.keys()) if (this.at(i)) J.set(i, true);
+    return J;
   }
 #+END_SRC
 
-The public methods of a composition object are:
+  - Returns the set of selected indices. It suffices to iterate
+    over all elements in ~_domain~ and all elements in the ~_baked~
+    selection mapping, and check whether they are selected or not.
 
-  - ~push(op)~ 
+#+CAPTION: ~<<map-storage-push>>~
+#+NAME: map-storage-push
+#+BEGIN_SRC js :noweb strip-export
+  MapStorage.prototype.push = function (op, changed) {
+    if (changed !== undefined) 
+      changed.value = diffOp(op, this, changed.value, false);
+    this._ops.push(op);
+    ++(this._gen);
+    var self = this;
+    op.domain.forEach(function(_, i) {
+      op.domain.set(i, self._domain.has(i) ? self._gen - self._domain.get(i) : self._ops.length);
+      self._domain.set(i, self._gen); 
+    });
+    op.applyOp = makeOpFunction(op);
+  }
+#+END_SRC
 
-    - Adds ~op~ to the composition; if ~c~ represents the 
-      composition $r_1 \circ r_2 \circ \cdots \circ r_n$, 
-      then ~c.push(op)~ represents the
-      composition ~op~ $\circ\, r_1 \circ r_2 \circ \cdots \circ r_n$.
+  - Adds ~op~ to the composition. 
+  - When ~op~ is pushed to ~ops~, each
+    element ~i~ in its domain is assigned the distance to the
+    previous operation in ~ops~ that defines ~i~. If none defines
+    ~i~, the distance is the length of ~ops~, indicating that the
+    previous definition is the base selection mapping. The
+    composition's domain is also updated for each ~i~, setting the
+    newly added operation ~op~ as the most recent one that defines
+    the selection state of ~i~.
+  - The ~op~ object is given an additional method ~applyOp~, which is
+    a function that applies the primitive selection operation defined
+    by ~op.f~ and ~op.J~ to a selection mapping, and produces a new
+    selection mapping.  Section [[#sec-primitive-selection-operations]]
+    explains ~makeOpFunction~.
+  - If ~changed~ is defined, ~push~ uses ~diffOp~ to compute
+    the set of indices whose selection status pushing ~op~ changes.
+    The result is a ~Map~ where each key is an element's index
+    and value the element's new selection state.
+  - The joint change of a sequence of push and pop operations can be
+    tracked jointly. The ~changed.value~ member may contain a set of
+    indices changed by a prior operation; ~diffInMask~ will exclude
+    indices changed twice.
 
-      #+CAPTION: ~<<op-composition-push>>~
-      #+NAME: op-composition-push
-      #+BEGIN_SRC js :noweb strip-export
-        func.push = function (op) {
-          ops.push(op);
-          ++gen
-          op.domain.forEach(function(_, i) {
-            op.domain.set(i, domain.has(i) ? gen - domain.get(i) : ops.length);
-            domain.set(i, gen); 
-          });
-        }
-      #+END_SRC
-
-    - When ~op~ is pushed to ~ops~, each element ~i~ in its domain is
-      assigned the distance to the previous operation in ~ops~ that
-      defines ~i~. If none defines ~i~, the distance is the length of
-      ~ops~, indicating that the previous definition is the base
-      selection mapping. The composition's domain is also updated for
-      each ~i~, setting the newly added operation ~op~ as the most
-      recent one that defines the selection state of ~i~.
-      
-  - ~pop()~
-
-    - Removes the most recently pushed operation from the composition.
-      If ~c~ is $r_1 \circ r_2 \circ \cdots \circ r_n$, then
-      ~c.pop()~ is $r_2 \circ \cdots \circ r_n$. 
-
-      /Precondition:/ ~ops~ not empty.
-
-      #+CAPTION: ~<<op-composition-pop>>~
-      #+NAME: op-composition-pop
-      #+BEGIN_SRC js :noweb strip-export
-        func.pop = function () {
-          var n = ops.length;
-          var op = ops.pop();
-          --gen;
-          // domain updated for those elements that are in op.domain
-          op.domain.forEach(function (_, i) {
-            if (op.domain.get(i) >= n) domain.delete(i); // no op defines i
-            else domain.set(i, domain.get(i) - op.domain.get(i)); 
-          });
-          return op;
-        }
-      #+END_SRC
-    
-  - ~top()~
-  
-    - Returns a reference to the most recently pushed operation.
-
-      /Precondition:/ ~ops~ not empty.
-
-      #+CAPTION: ~<<op-composition-top>>~
-      #+NAME: op-composition-top
-      #+BEGIN_SRC js :noweb strip-export
-        func.top = function () { return ops[ops.length - 1]; }
-      #+END_SRC
-
-  - ~top2()~
-  
-    - Returns a reference to the second-most recently pushed operation.
-
-      /Precondition:/ ~ops~ has at least two elements.
-
-      #+CAPTION: ~<<op-composition-top2>>~
-      #+NAME: op-composition-top2
-      #+BEGIN_SRC js :noweb strip-export
-        func.top2 = function () { return ops[ops.length - 2]; }
-      #+END_SRC
-
-  - ~shift()~
-
-    - Removes the least recently pushed operation from the composition.
-      If ~c~ is $r_1 \circ r_2 \cdots \circ r_n$, then
-      ~c.shift()~ is $r_1 \circ r_2 \cdots \circ r_{n-1}$. Returns
-      the removed operation.
-
-      /Precondition:/ ~ops~ not empty.
-
-      #+CAPTION: ~<<op-composition-shift>>~
-      #+NAME: op-composition-shift
-      #+BEGIN_SRC js :noweb strip-export
-        func.shift = function (bmap) {
-          var op = ops.shift();
-          op.domain.forEach(function(_, i) {
-            if (domain.get(i) - gen === ops.length) { domain.delete(i); }
-            // if lastOp the only op that defines i, remove i from domain
-          });
-          return op;
-        }
-     #+END_SRC
-
-  - ~size()~
- 
-    - Returns the number of operations in ~ops~.
-
-      #+CAPTION: ~<<op-composition-size>>~
-      #+NAME: op-composition-size
-      #+BEGIN_SRC js :noweb strip-export 
-        func.size = function () { return ops.length; }
-      #+END_SRC
-
-  - ~removeIndex(i)~
-
-    - Removes an index from ~domain~ and all domains in ~ops~.
-
-      #+CAPTION: ~<<op-composition-remove-index>>~
-      #+NAME: op-composition-remove-index
-      #+BEGIN_SRC js :noweb strip-export 
-        func.removeIndex = function (i) {
-          if (!domain.has(i)) return;
-
-          // find the first op in ops that defines i
-          var j = (ops.length - 1) - (gen - domain.get(i));
-
-          while (j >= 0) {
-            var d = ops[j].domain.get(i);
-            ops[j].domain.delete(i);
-            j -= d;
+    #+CAPTION: ~<<map-storage-diff-op>>~
+    #+NAME: map-storage-diff-op
+    #+BEGIN_SRC js :noweb strip-export
+      function diffOp(op, m, changed, flip) {
+        if (changed === undefined) changed = new Map();
+        op.domain.forEach(function(_, i) {
+          var b = m.at(i);
+          if (op.f(b) !== b) { 
+            if (changed.has(i)) changed.delete(i); 
+            else changed.set(i, flip ? b : op.f(b)); 
           }
-          domain.delete(i);
-        }
+        });
+        return changed;
+      }
+    #+END_SRC
+
+      - ~op~ is the primitive selection operation whose effect is 
+        tracked.
+      - ~m~ is a selection mapping (the selection storage).
+      - ~changed~ is the set of indices changed by prior pushs or pops.
+      - ~flip~ indicates whether we are observing the effect of
+        pushing (~flip === false~) or popping (~flip === true~)
+        ~op~.
+        
+#+CAPTION: ~<<map-storage-pop>>~
+#+NAME: map-storage-pop
+#+BEGIN_SRC js :noweb strip-export
+  MapStorage.prototype.pop = function (changed) {
+    var n = this._ops.length;
+    var op = this._ops.pop();
+    --(this._gen);
+    var self = this;
+    // domain updated for those elements that are in op.domain
+    op.domain.forEach(function (_, i) {
+      if (op.domain.get(i) >= n) self._domain.delete(i); // no op defines i
+      else self._domain.set(i, self._domain.get(i) - op.domain.get(i)); 
+    });
+    if (changed !== undefined) {
+      changed.value = diffOp(op, self, changed.value, true);
+    }
+    return op;
+  }
+#+END_SRC
+
+  - Removes the most recently pushed operation from the composition.
+  - Tracking changes is similar to that in ~push~, except that
+    the effect of ~op~ is computed /after/ it has been popped
+    off from ~_ops~; and the last parameter to ~diffOn~ is ~true~ to 
+    indicate a call from ~pop~.
+  - /Precondition:/ ~ops~ not empty.
+    
+#+CAPTION: ~<<map-storage-top>>~
+#+NAME: map-storage-top
+#+BEGIN_SRC js :noweb strip-export
+  MapStorage.prototype.top = function () { return this._ops[this._ops.length - 1]; }
+#+END_SRC
+
+  - Returns a reference to the most recently pushed primitive
+    selection operation.
+  - /Precondition:/ ~_ops~ not empty.
+
+#+CAPTION: ~<<map-storage-top2>>~
+#+NAME: map-storage-top2
+#+BEGIN_SRC js :noweb strip-export
+  MapStorage.prototype.top2 = function () { return this._ops[this._ops.length - 2]; }
+#+END_SRC
+
+  - Returns a reference to the second-most recently pushed primitive
+    selection operation.
+  - /Precondition:/ ~_ops~ has at least two elements.
+
+#+CAPTION: ~<<map-storage-size>>~
+#+NAME: map-storage-size
+#+BEGIN_SRC js :noweb strip-export 
+  MapStorage.prototype.size = function () { return this._ops.length; }
+#+END_SRC
+
+  - Returns the number of operations in ~_ops~.
+
+#+CAPTION: ~<<map-storage-bake>>~
+#+NAME: map-storage-bake
+#+BEGIN_SRC js :noweb strip-export
+  MapStorage.prototype.bake = function () { return this._baked.bake(this._shift()); }          
+
+  MapStorage.prototype._shift = function () {
+    var op = this._ops.shift();
+    var self = this;
+    op.domain.forEach(function(_, i) {
+      if (self._domain.get(i) - self._gen === self._ops.length) { self._domain.delete(i); }
+      // if lastOp the only op that defines i, remove i from domain
+    });
+    return op;
+  }
+#+END_SRC
+
+  - Removes the least recently pushed operation from the ~_ops~
+    composition and bakes it to the base selection mapping ~_baked~.
+  - /Precondition:/ ~_ops~ not empty.
+
+#+CAPTION: ~<<map-storage-on-selected>>~
+#+NAME: map-storage-on-selected
+#+BEGIN_SRC js :noweb strip-export
+  MapStorage.prototype.onSelected = function (J) {
+    return isSingleton(J) && this.at(firstKey(J));
+  }
+#+END_SRC
+
+  - The selection domain ~J~ is considered to be on a selected area if
+    ~J~ contains exactly one element that is currently selected.
+
+#+CAPTION: ~<<map-storage-modify-storage>>~
+#+NAME: map-storage-modify-storage
+#+BEGIN_SRC js :noweb strip-export 
+  MapStorage.prototype.modifyStorage = function (cmd) {
+    if (cmd.remove !== true) return; // command not recognized
+    var i = cmd.value;
+    if (!this._domain.has(i)) return; // nothing to remove
+
+    // find the first op in ops that defines i
+    var j = (this._ops.length - 1) - (this._gen - this._domain.get(i));
+
+    while (j >= 0) {
+      var d = this._ops[j].domain.get(i);
+      this._ops[j].domain.delete(i);
+      j -= d;
+    }
+    this._domain.delete(i);
+    this._baked.set(i, false);
+  }
+#+END_SRC
+
+  - Modify the storage according to ~cmd~. The only command supported
+    is for removing an index.  If ~cmd.remove === true~, then the
+    index ~cmd.value~ is removed from ~_domain~, from all domains in
+    ~_ops~, and from ~_baked~.
+
+    #+NAME: map-storage-modify-storage-test
+    #+BEGIN_SRC js :noweb strip-export :exports none
+      test ("Map storage modify storage tests", function (t) {
+
+        var stor = new MapStorage();
+        var comp = stor.at.bind(stor);
+
+        stor.push(makeOp(tt, dom(0)));
+        stor.push(makeOp(tt, dom(1)));
+        stor.push(makeOp(ff, dom(0)));
+        stor.push(makeOp(tt, dom(0, 1)));
+        t.ok(arrayEquals([0, 1].map(comp), [true, true]), "removeIndex 1");
+        stor.modifyStorage({remove: true, value: 1});
+        t.ok(arrayEquals([0, 1].map(comp), [true, false]), "removeIndex 2");
+        stor.modifyStorage({remove: true, value: 0});
+        t.ok(arrayEquals([0, 1].map(comp), [false, false]), "removeIndex 3");
+      });
       #+END_SRC
+
+#+CAPTION: ~<<map-storage-equal-domains>>~
+#+NAME: map-storage-equal-domains
+#+BEGIN_SRC js :noweb strip-export 
+  MapStorage.prototype.equalDomains = function (J1, J2) { return equalKeys(J1, J2); }
+#+END_SRC
+
+#+CAPTION: ~<<map-storage-is-empty-domain>>~
+#+NAME: map-storage-is-empty-domain
+#+BEGIN_SRC js :noweb strip-export 
+  MapStorage.prototype.isEmpty = function (J) { return isEmpty(J); }
+#+END_SRC
+
 
 ** Op composition tests                                    :noexport:ARCHIVE:
 
-#+NAME: op-composition-tests
-#+BEGIN_SRC js :exports none
-  test ("Op composition tests", function (t) {
+#+NAME: map-storage-tests
+#+BEGIN_SRC js :exports none :noweb yes
+  <<map-storage-modify-storage-test>>
 
-    var D = multiselect.detail;
-    var s = D.makeSelectionMapping();
-    var comp = D.makeOpComposition();
+  test ("Map storage tests", function (t) {
+
+    var stor = new MapStorage();
+    var comp = stor.at.bind(stor);
+
     var F = false, T = true;
-    var sel = comp(s); 
 
-    t.ok(arrayEquals([0, 1, 2].map(sel), [F, F, F]), "empty");
+    t.ok(arrayEquals([0, 1, 2].map(comp), [F, F, F]), "empty");
    
-    comp.push(D.makeOp(D.tt, dom(1)));
-    t.ok(arrayEquals([0, 1, 2].map(sel), [F, T, F]), "add 1");
+    stor.push(makeOp(tt, dom(1)));
+    t.ok(arrayEquals([0, 1, 2].map(comp), [F, T, F]), "add 1");
 
-    comp.push(D.makeOp(D.not, dom(0, 1, 2)));
-    t.ok(arrayEquals([0, 1, 2].map(sel), [T, F, T]), "add 2");
+    stor.push(makeOp(not, dom(0, 1, 2)));
+    t.ok(arrayEquals([0, 1, 2].map(comp), [T, F, T]), "add 2");
 
-    comp.push(D.makeOp(D.ff, dom(0, 1)));
-    t.ok(arrayEquals([0, 1, 2].map(sel), [F, F, T]), "add 3");
+    stor.push(makeOp(ff, dom(0, 1)));
+    t.ok(arrayEquals([0, 1, 2].map(comp), [F, F, T]), "add 3");
 
-    comp.pop();
-    t.ok(arrayEquals([0, 1, 2].map(sel), [T, F, T]), "pop 1");
+    stor.pop();
+    t.ok(arrayEquals([0, 1, 2].map(comp), [T, F, T]), "pop 1");
 
-    comp.pop();
-    t.ok(arrayEquals([0, 1, 2].map(sel), [F, T, F]), "pop 2");
+    stor.pop();
+    t.ok(arrayEquals([0, 1, 2].map(comp), [F, T, F]), "pop 2");
 
-    comp.pop();
-    t.ok(arrayEquals([0, 1, 2].map(sel), [F, F, F]), "empty");
+    stor.pop();
+    t.ok(arrayEquals([0, 1, 2].map(comp), [F, F, F]), "empty");
 
     // push three ops
-    comp.push(D.makeOp(D.not, dom(0, 2)));
-    comp.push(D.makeOp(D.tt,  dom(1, 2)));
-    comp.push(D.makeOp(D.not, dom(0, 1)));
-    t.ok(arrayEquals([0, 1, 2].map(sel), [F, F, T]), "add 3 again");
+    stor.push(makeOp(not, dom(0, 2)));
+    stor.push(makeOp(tt,  dom(1, 2)));
+    stor.push(makeOp(not, dom(0, 1)));
+    t.ok(arrayEquals([0, 1, 2].map(comp), [F, F, T]), "add 3 again");
 
-    comp.shift(); 
-    t.ok(arrayEquals([0, 1, 2].map(sel), [T, F, T]), "shift 1");
+    stor._shift(); 
+    t.ok(arrayEquals([0, 1, 2].map(comp), [T, F, T]), "shift 1");
 
-    comp.shift(); 
-    t.ok(arrayEquals([0, 1, 2].map(sel), [T, T, F]), "shift 2");
+    stor._shift(); 
+    t.ok(arrayEquals([0, 1, 2].map(comp), [T, T, F]), "shift 2");
 
-    comp.shift(); 
-    t.ok(arrayEquals([0, 1, 2].map(sel), [F, F, F]), "shift 3");
+    stor._shift(); 
+    t.ok(arrayEquals([0, 1, 2].map(comp), [F, F, F]), "shift 3");
    
-  });
-#+END_SRC
-
-#+NAME: op-remove-index-tests
-#+BEGIN_SRC js :exports none
-  test ("Op composition removeIndex tests", function (t) {
-
-    var D = multiselect.detail;
-    var comp = D.makeOpComposition();
-    var s = D.makeSelectionMapping();
-    var selection = comp(s); 
-
-    comp.push(D.makeOp(D.tt, dom(0)));
-    comp.push(D.makeOp(D.tt, dom(1)));
-    comp.push(D.makeOp(D.ff, dom(0)));
-    comp.push(D.makeOp(D.tt, dom(0, 1)));
-    t.ok(arrayEquals([0, 1].map(selection), [true, true]), "removeIndex 1");
-    comp.removeIndex(1);
-    t.ok(arrayEquals([0, 1].map(selection), [true, false]), "removeIndex 2");
-    comp.removeIndex(0);
-    t.ok(arrayEquals([0, 1].map(selection), [false, false]), "removeIndex 3");
   });
 #+END_SRC
 
 * Selection state
 
-The ~SelectionState~ class stores all state of a multi-selection, 
-that is, the information contained in the "selection state tuple"
-described in the manuscript.  ~SelectionState~ is (most of) the public
-API of {{{msjs}}}.  Its constructor's parameters are:
+The ~SelectionState~ class stores all state of a multi-selection, that
+is, the information contained in the "selection state tuple" described
+in the manuscript.  ~SelectionState~ is (most of) the public API of
+{{{msjs}}}.  Its constructor's parameters are:
 
  - a /selection geometry/ (see Section [[#sec-selection-geometries]]),
  - a callback (~refresh~) that defines how to display the selection
    state (the default is a function that does nothing),
  - a flag that controls whether /change tracking/ should be used or
-   not (the default is ~false~: no tracking), and
- - the maximum number of undo operations (the default is 10).
+   not (the default is ~false~: no tracking),
+ - the maximum number of undo operations (the default is 10), and
+ - the /selection storage/ (see Section [[#sec-selection-storage]]).
 
 #+NAME: selection-state
 #+BEGIN_SRC js 
-  function SelectionState (geometry, refresh, tracking, maxUndo) {
-
-    if (refresh === undefined) refresh = function () {};
-    if (tracking === undefined) tracking = false;
-    if (maxUndo === undefined) maxUndo = 10;
-
+  function SelectionState (geometry, refresh, tracking, maxUndo, 
+                           storage) {
     this._geometry = geometry;
-    this._tracking = tracking;
-    this._refresh = refresh;
-    this._maxOps = Math.max(2, 2 * maxUndo);
-    this.reset();
-  }
-#+END_SRC
 
-If ~tracking~ is ~true~, ~refresh~ will be called with a ~Map~ whose
-keys are the indices of the changed elements, and values their current
-selection status (~true~ or ~false~).  If ~tracking~ is false,
-~refresh~ will be called with the current selection mapping.  Tracking
-can simplify visualizing the selection, but it requires additional
-computation and memory, so its use is optional.
+    refresh = or_default(refresh, function () {});
+    this._tracking = or_default(tracking, false);
 
-The maximum number of selection operations, ~_maxOps~, is
-twice ~maxUndo~, as each undoable operation consists of two 
-selection operations.  At least one pair of selection
-operations must be allowed, otherwise shift-click will not work as
-expected (if each operation is immediately baked into the permanent
-selection mapping, shift-click would not remember the prior state of
-the elements under the current selection domain).
+    var self = this;
+    if (this._tracking) this._refresh = function (c) { refresh(self, c.value); };
+    else this._refresh = function () { refresh(self); }
 
-The rest of the initialization code is in the ~reset~ method.  This
-method can be used if the entire selection state must be reset (e.g.,
-to respond to the indexed family $I$ being changed).
+    this._maxOps = Math.max(2, 2 * or_default(maxUndo, 10));
+    this._storage = or_default(storage, new MapStorage());
+    this._storageStatus = ACTIVE_NONE;        
 
-#+NAME: selection-state-reset
-#+BEGIN_SRC js 
-  SelectionState.prototype.reset = function () {
-
-    this._s = makeSelectionMapping();
-    this._ops = makeOpComposition();
     this._spath = [];
+    this._spathCache = {};
     this._cursor = undefined;
-
-    this._current = this._ops(this._s); // current selection
-
-    this._opsStatus = ACTIVE_NONE;        
-
     this._redoStack = [];
     
     this._queuedCommand = function () {};
-  };
+  }
 
-  const ACTIVE_NONE = 0, ACTIVE_FILTER = 1, ACTIVE_SHIFT_CLICK = 2;
+  const ACTIVE_NONE = 0, ACTIVE_PREDICATE = 1, ACTIVE_PATH = 2;
 #+END_SRC
 
-The elements of the /selection state tuple/ described 
-in the manuscript are represented by ~SelectionState~'s member
-variables:
+The ~refresh~ function is always passed the selection state object. If
+~s~ is the selection object, then ~s.selected()~ function returns the
+currently selected elements in the format decided by the selection
+storage.  If ~tracking~ is ~true~, ~refresh~ calls will also include
+an argument that contains the indices of the changed elements.  The
+~_tracking~ method encapsulates this logic.  The type of the argument
+for changed elements depends on the implementation of the selection
+storage. With the default selection storage, it is a ~Map~ where each
+key is an element's index and value the element's new selection state,
+either ~true~ or ~false~.  Tracking may in some cases simplify
+visualizing the selection, but it requires additional computation and
+memory, so its use is optional.
 
-  1. ~_s~ is the selection mapping,
-  2. ~_ops~ is the composition of primitive selection operations (it
-     is an invariant that ~_ops~ always has an even number of
-     selection operations),
-  3. ~_spath~ is the selection path, 
-  4. ~_cursor~ is the keyboard cursor.
+The maximum number of selection operations, ~_maxOps~, is twice
+~maxUndo~, as each undoable operation consists of two selection
+operations.  At least one pair of selection operations must be
+allowed, otherwise shift-click will not work as expected (if each
+operation is immediately baked into the permanent selection mapping,
+shift-click would not remember the prior state of the elements under
+the current selection domain).
+
+The elements of the /selection state tuple/ described in the
+manuscript are represented by ~SelectionState~'s member variables:
+
+  1. ~_storage~ contains both the base selection mapping $s$ and
+     and the composition of primitive selection operations $\textit{ops}$. It
+     is an invariant that ~_storage~ always has an even number of
+     selection operations in $\textit{ops}$.
+  2. ~_spath~ is the selection path.
+  3. ~_cursor~ is the keyboard cursor.
 
 Some additional state is maintained:
 
-  1. ~_opsStatus~ is an indicator of whether the topmost selection
-     operation is /active/ (open for modification) and for which command. It can
-     take values ~ACTIVE_NONE~, ~ACTIVE_SHIFT_CLICK~, or ~ACTIVE_FILTER~.
-     If the status is ~ACTIVE_NONE~, then both shift-click and filter
-     methods will first add a new empty pair of selection operators to
-     ~_ops~.  If it is ~ACTIVE_SHIFT_CLICK~, then shift-click will not
-     add a new pair, but filter will. The roles are reversed with
-     ~ACTIVE_FILTER~.
+  1. ~_storageStatus~ is an indicator of whether the topmost selection
+     operation is /active/ (open for modification) and for which
+     command. It can take the values ~ACTIVE_NONE~,
+     ~ACTIVE_PATH~, or ~ACTIVE_PREDICATE~.  If the status is
+     ~ACTIVE_NONE~, then both ~shiftClick~ and ~predicateSelect~ methods will
+     first add a new empty pair of selection operators to ~_storage~.
+     If it is ~ACTIVE_PATH~, then ~shiftClick~ will not add a
+     new pair, but ~predicateSelect~ will. The roles are reversed with
+     ~ACTIVE_PREDICATE~.
     
-     The ~_opsStatus~ member is not part of the selection state tuple
-     described in the formal model in the manuscript. There the same
-     effect is achieved with the selection path: an undefined path
-     (the $\bot$ value) corresponds to the ~ACTIVE_NONE~ status; a
-     path that matches $P$ corresponds to the ~ACTIVE_SHIFT_CLICK~
+     The ~_storageStatus~ member is not part of the selection state
+     tuple described in the formal model in the manuscript. There the
+     same effect is achieved with the selection path: an undefined
+     path (the $\bot$ value) corresponds to the ~ACTIVE_NONE~ status;
+     a path that matches $P$ corresponds to the ~ACTIVE_PATH~
      status; and a path that matches $Q$ (a predicate), corresponds to
-     the ~ACTIVE_FILTER~ status.
-     Note that a predicate is not stored at all; it need not be as every
-     call to ~filter~ defines a new predicate, not a modification to the
-     existing one. Compare this to ~shiftClick~, where each call modifies
-     the current selection path rather than replaces it.
+     the ~ACTIVE_PREDICATE~ status.  Note that a predicate is not stored
+     at all; it need not be, as every call to ~predicateSelect~ defines a new
+     predicate, not a modification to the existing one. Compare this
+     to ~shiftClick~, where each call modifies the current selection
+     path rather than replaces it.
 
-  2. ~_redoStack~ contains the redoable commands
-     (selection operations).  
+  2. ~_spathCache~ is an object passed to the selection geometry's
+     ~extendPath~ and ~selectionDomain~ functions. It can be used for
+     storing previous results used in path or selection domain
+     computations, so that future computations can be done faster. The
+     cache is set to ~{}~ at every click and command-click, ~undo~ and
+     ~redo~, etc. It is only retained before a shift-click command.
 
-  3. ~_current~ is bound to the value ~_ops(_s)~, and it
-     is thus the selection mapping that reflects the current selection
-     status of the elements.
+  2. ~_redoStack~ contains the redoable commands, each a pair of
+     primitive selection operations.
 
-  4. ~_queuedCommand~ is a one-element command queue, which is
-     used in combining several consecutive shift-click operations to
-     one. This optimization reduces the number of calls made to 
+  3. ~_queuedCommand~ is a one-element command queue, which is used in
+     combining several consecutive shift-click operations to one. This
+     optimization reduces the number of calls made to
      ~selectionDomain~ during a rubber-band selection.
 
 ** Accessing the selection state of elements
 
 The selection state of the element at index ~i~ is given by the
-~isSelected(i)~ function:
+~isSelected(i)~ function.  The complexity of ~isSelected~ depends on
+the selection storage; it might not be a constant time operation.
+
 
 #+NAME: selection-state-is-selected
 #+BEGIN_SRC js 
   SelectionState.prototype.isSelected = function (i) { 
     this._flush();
-    return this._current(i); 
+    return this._storage.at(i);
   }
 #+END_SRC
 
-The ~_flush~ method is described with the shift-click command; its purpose is
-to complete a possibly pending shift-click command, stored in ~_queuedCommand~.
-The flush is called at the beginning of many of the methods of ~SelectionState~.
+The ~_flush~ method is described with the shift-click command; its
+purpose is to complete a possibly pending shift-click command, stored
+in ~_queuedCommand~.  The ~_flush~ method is called at the beginning
+of many of the methods of ~SelectionState~.
 
-The ~selected~ function constructs a ~Set~ consisting of the currently selected
-elements.  To determine which elements are selected, it suffices to
-inspect the elements that are selected in the base selection mapping
-and elements that are in the domain of the current composition. The
-iteration order of the resulting ~Set~ offers no useful guarantees.
+The ~selected~ function returns the set of currently selected
+elements. How this set is represented is determined by the
+selection storage.
 
 #+NAME: selection-state-selected
 #+BEGIN_SRC js 
   SelectionState.prototype.selected = function () {
     this._flush();
-    var J = makeEmptySet();
-    for (var i of this._s.selected()) if (this._current(i)) J.add(i);
-    for (var i of this._ops.domain.keys()) if (this._current(i)) J.add(i);
-    return J;
+    return this._storage.selected();
   }
 #+END_SRC
 
@@ -973,74 +1138,131 @@ with a couple additional details.
 
 *** Click 
 
-The ~click(vp)~ function expects a selection space coordinate, which
-will (usually) become the new anchor and the new keyboard cursor.  The
-method clears the selection path, then extends the empty path with
-~vp~.  The selection geometry's ~extendPath~ method may still leave
-the path empty---some geometries will have coordinate values that
-should not be stored to the selection path, such as points outside any
-selectable element.  The ~extendPath~ must return ~null~ if ~path~
-is not changed. If the selection path is left empty, the anchor is
-undefined and the keyboard cursor remains unchanged.
-
 #+NAME: selection-state-click
 #+BEGIN_SRC js 
   SelectionState.prototype.click = function(vp) {
     this._flush();
     this._spath = []; 
-    if (this._geometry.extendPath(this._spath, vp) !== null) this._cursor = vp;
+    this._spathCache = {};
 
-    var J1 = this._geometry.selectionDomain(this._spath);
+    this._modifyPathAndCursor(vp);
+    this._storageStatus = ACTIVE_PATH;
 
-    this._opsStatus = ACTIVE_SHIFT_CLICK;
-
+    var J1 = this._geometry.selectionDomain(this._spath, undefined, this._spathCache);
     if (clickIsNop.call(this, J1)) return this;
+    var J0 = this._storage.selected();
 
-    var J0 = makeEmptyMap();
-    for (var i of this._s.selected()) if (this._current(i)) J0.set(i, true);
-    for (var i of this._ops.domain.keys()) if (this._current(i)) J0.set(i, true);
+    var changed = this._makeEmptyTrackingSet(); // undefined or {changed: undefined}
+    this._storage.push(makeOp(ff, J0), changed);
+    this._storage.push(makeOp(tt, J1), changed);
 
-    this._ops.push(makeOp(ff, J0));
-    this._ops.push(makeOp(tt, J1));
     this._bake();
+    this._refresh(changed);
 
-    if (this._tracking) this._refresh(mapSymmetricDifference(J0, J1, false, true));
-    else this._refresh(this._current);
     return this;
   };
 #+END_SRC
 
+The ~click(vp)~ function expects a selection space coordinate, which
+will (usually) become the new anchor and the new keyboard cursor.  The
+method clears the selection path and the path cache, then extends the empty path with
+~vp~ and updates the cursor using the ~_modifyPathAndCursor~ method.  This
+method is merely a wrapper that calls the selection
+geometry's ~extendPath~ method.
+
+In the common case the new path will be ~[vp]~. In some selection
+geometries it migth be the empty path ~[]~.  This can be the case in
+geometries that have coordinate values that should not be stored to
+the selection path, such as points outside any selectable element. 
+By delegating the updating of the path to ~extendPath~, the client is
+given full control over path manipulation. 
+
 The ~click~ function clears the current selection, then adds the
 elements of the selection domain to the selection.  This effect is
-achieved by pushing two selection operations: first ~ff~
+achieved by pushing two primitive selection operations: first ~ff~
 over all selected elements, then ~tt~ over the new selection domain.
 
-The ~_opsStatus~ is set to ~ACTIVE_SHIFT_CLICK~ to
-indicate that if the next operation is shift-click, it should modify the topmost
-selection operation that is pushed to ~_ops~.
-
 The helper function ~clickIsNop(J)~ detects clicks that would not have
-any effect on the selection state. Such clicks do not push any new
-selection operations, so that we avoid creating unnecessary undoable
-states. The ~refresh~ function is not called either.
+any effect on the selection state. Such clicks do not push new
+primitive selection operations, so that unnecessary undo states are
+not created. The ~refresh~ function is not called either.
 
-If ~_ops~ grows too big, [[#sec-baking][~_bake~]] reduces the size of ~_ops~
-by one undoable operation (two selection operations).
+Shift-click sets the ~_storageStatus~ to ~ACTIVE_PATH~ to
+indicate that if the next operation is shift-click, it should modify
+the topmost selection operation that is pushed to ~_storage~, rather
+than push a new pair of primitive selection operations.
 
-Finally, the ~_refresh~ callback is invoked.  If tracking is on, its
-argument is a newly constructed ~Map~ of the changed elements.  The
-keys of the map indicate the changed elements, and the values their
-current state (~true~ selected, ~false~ not selected).  If tracking is
-off, the argument is the current selection mapping.
+If ~_storage~ grows to contain too many primitive selection
+operations, ~_bake~ removes one undoable operation (two primitive
+selection operations) from ~_storage~.
+
+The ~_refresh~ callback is invoked with the set of changed elements
+(which is undefined if tracking is off).  Prior to the calls to
+~_storage.push~, the call to ~_makeEmptyTrackingSet~ initializes the
+changed set if tracking is on, and leaves it undefined if it is off.
+After the ~push~ calls, ~changed~ either remains undefined or
+~changed.value~ contains the changed indices to pass on to
+~_refresh~. The ~_makeEmptyTrackingSet~ is defined as follows.
+
+#+NAME: selection-state-empty-tracking-set
+#+BEGIN_SRC js 
+  SelectionState.prototype._makeEmptyTrackingSet = function() { 
+    return this._tracking ? { value: undefined } : undefined;
+  }
+#+END_SRC
+
+*** Wrapping calls to ~extendPath~
+
+The ~extendPath~ function has a complex protocol for returning its
+results back to the caller, explained in Section
+[[#sec-selection-geometries]]. The ~_modifyPathAndCursor~ function wraps
+a call to ~extendPath~ and takes care of the details of the protocol.
+The ~_modifyPathAndCursor~ function may modify both the ~_spath~ and
+the ~_cursor~ members.
+
+#+NAME: selection-state-_modify-path
+#+BEGIN_SRC js 
+  SelectionState.prototype._modifyPathAndCursor = function (vp) {
+    var r = this._geometry.extendPath(this._spath, vp, this._spathCache, this._cursor);
+
+    if (r === undefined || r === null) {
+      this._cursor = activeEnd(this._spath);
+      return r;
+    }
+    if (r.cursor !== undefined) this._cursor = r.cursor;
+    if (r.path.isArray()) this._spath = r.path;
+    return r.path;
+  }
+#+END_SRC
+
+In most selection geometries, the ~extendPath~ function only affects
+the selection path, and the cursor is always set to be the path's
+active end. One can think of selection geometries where this would not
+be the desired behavior, and therefore ~extendPath~ takes the cursor
+as a parameter as well, and can compute a new value for the cursor. If
+~extendPath~ sets the cursor, it returns an object that has a ~cursor~
+property. If ~extendPath~ returns ~null~ or an object with the
+property ~path~ with value ~null~, ~_modifyPathAndCursor~ returns
+~null~. This is an indication that the path did not change, or it
+changed but in a way that does not affect the selection domain.
+
+The rationale for the protocol is that in the common case where cursor
+always follows the active end, the client-defined ~extendPath~ does
+not need to use the cursor parameter, and either needs no ~return~
+statement at all or returns ~null~ for some points. For exotic
+selection geometries, returning an object that has the ~cursor~ and
+~path~ members gives the client full control of the cursor and path
+modifications.
 
 *** Detecting a click or command-click that would have no effect
 
-Assume ~op1~ and ~op2~ are the two topmost selection operations of the ~_ops~ composition.
+Assume ~op1~ and ~op2~ are the two topmost selection operations of the ~_storage~'s 
+primitive selection operation composition.
 Then, if the most recent command was
 
   - click, ~op1.f~ is ~tt~ and ~op2.f~ is ~ff~;
   - command-click, ~op1.f~ is either ~tt~ or ~ff~ and ~op2.f~ is ~id~;
-  - shift-click, filter, undo, or redo, either the conditions of click or command-click hold.
+  - shift-click, predicate-select, undo, or redo, either of the conditions of click or command-click can hold.
 
 A click is deemed a nop if the previous command was also a click, and 
 if the new selection domain is equal to the previous one:
@@ -1048,169 +1270,139 @@ if the new selection domain is equal to the previous one:
 #+NAME: click-is-nop
 #+BEGIN_SRC js 
   function clickIsNop(J) {      
-    return this._ops.size() >= 2 &&
-      this._ops.top2().f === ff && this._ops.top().f === tt && 
-      equalKeys(J, this._ops.top().domain);
+    return this._storage.size() >= 2 &&
+      this._storage.top2().f === ff && this._storage.top().f === tt && 
+      this._storage.equalDomains(J, this._storage.top().domain);
   }  
 #+END_SRC
 
-A command-click operation toggles, so for it to have no effect, ~J~ must
-be empty. Though this guarantees no change to elements' selection
+A command-click operation toggles, so for it to have no effect, ~J~
+must be empty. Though this guarantees no change to elements' selection
 status, it is not yet a sufficient condition for a nop, since the
-selection mode may have to change. (This case results to indistinguishable
-undo states.)
+/selection mode/ may have to change.  This case results in two
+indistinguishable undo states. The selection mode, whether the next
+shift-click will select or deselect, is determined by the selection
+function of the topmost primitive selection operation.
 
 #+NAME: cmd-click-is-nop
 #+BEGIN_SRC js 
   function cmdClickIsNop(J, mode) {      
-    return this._ops.size() >= 2 &&
-      this._ops.top2().f === id && this._ops.top().f === mode &&
-      isEmpty(J) && isEmpty(this._ops.top().domain);
+    return this._storage.size() >= 2 &&
+      this._storage.top2().f === id && this._storage.top().f === mode &&
+      this._storage.isEmpty(J) && 
+      this._storage.isEmpty(this._storage.top().domain);
   }  
 #+END_SRC
 
 The above rules can in rare cases let equivalent undo states through.
-It would be possible to add additional checking to the undo operation, 
-but it is perhaps not worth the complication.
+It would be possible to add additional checking to the undo operation
+or to ~cmdClick~, but it is perhaps not worth the complication.
 
 *** Command-click
 
 The implementation differs from ~click~ on several counts: first, the
 selection mode depends on whether the clicked point ~vp~ is on a
 selected element or not; second, command-clicking does not clear the
-current selection; third, the conditions for detecting a nop differ; and
-fourth, computing which elements were changed is different.
-The second parameter, ~selmode~, is an additional variation point that is
-not used in typical selection geometries.
+current selection; third, the conditions for detecting a nop differ;
+and fourth, computing which elements were changed is different.  The
+~selmode~ parameter is explained below; it is not needed in typical
+selection contexts.
 
 #+NAME: selection-state-cmd-click
 #+BEGIN_SRC js 
   SelectionState.prototype.cmdClick = function (vp, selmode) {
     this._flush();
     this._spath = []; 
-    if (this._geometry.extendPath(this._spath, vp) !== null) this._cursor = vp;
+    this._spathCache = {};
+    this._modifyPathAndCursor(vp);
+    this._storageStatus = ACTIVE_PATH;
 
-    var J = this._geometry.selectionDomain(this._spath);
+    var J = this._geometry.selectionDomain(this._spath, undefined, this._spathCache);
+
     var mode;
-    if (selmode === undefined) mode = this._onSelectedIndex(J) ? ff : tt;
+    if (selmode === undefined) mode = this._storage.onSelected(J) ? ff : tt;
     else mode = selmode ? tt : ff;
-
-    this._opsStatus = ACTIVE_SHIFT_CLICK;
 
     if (cmdClickIsNop.call(this, J, mode)) return this;
 
-    var changed = makeEmptyMap();
-    if (this._tracking) {
-      for (var i of J.keys()) {
-        var state = this._current(i);
-        if (state !== mode(state)) changed.set(i, mode(state));
-      }
-    }
-    this._ops.push(makeOp(id, makeEmptyMap()));
-    this._ops.push(makeOp(mode, J));
-    this._bake();
+    var changed = this._makeEmptyTrackingSet();
+    this._storage.push(makeOp(id, this._geometry.selectionDomain([], undefined, {})), changed);
+    this._storage.push(makeOp(mode, J), changed);
 
-    this._refresh(this._tracking ? changed : this._current);
+    this._bake();
+    this._refresh(changed);
+
     return this;
   }
 #+END_SRC
 
-The selection ~mode~ is either ~ff~ or ~tt~, and determined by whether
-the point ~vp~ is considered to be on an element that is selected, or
-not. This determination is made by ~_onSelectedIndex(J)~, which
-returns ~true~ exactly when ~J~ contains exactly one index and that
-index is selected.
+The selection mode is determined by whether the point ~vp~ is
+considered to be on an element that is selected or not on such an
+element. This determination is made by selection storage's
+~onSelected~ method.
 
-The selection mode can also be set explicitly; if the second parameter
-~selmode~ is ~true~, the selection mode is set to ~tt~, and if 
+The selection mode can also be set explicitly: if the second parameter
+~selmode~ is ~true~, the ~mode~ variable is set to ~tt~, and if 
 ~false~, to ~ff~. This mechanism is meant for applications that
 have a "non-standard" way of choosing the selection mode, such as 
 a particular modifier key to deselect.
 
-For tracking changes, it suffices to consider the indices in ~J~.  The
-current selection state of each index is compared to what
-the state will be, ~mode(state)~, when the new primitive operations
-have been pushed to ~_ops~. If those states differ, the index is added
-to ~changed~.
-
 *** Shift-click
 
-The semantics of shift-clicking guarantees that that the effect of two
+The semantics of shift-clicking guarantees that the effect of two
 consecutive shift-clicks, say, at points $p_1$ and $p_2$, is the same
 as first extending the selection path with $p_1$, then shift-clicking
-at $p_2$.  To take advantage of this property when many shift-click
-events happen in rapid succession, a shift-click command is queued,
-instead of executed immediately.  At most one command can be queued at
-a time.
+at $p_2$.  This property can be taken advantage of when many
+shift-click events happen in rapid succession. This is why a
+shift-click command is queued, instead of being executed immediately. 
+At most one command can be queued at a time.
 
 #+NAME: selection-state-shift-click
 #+BEGIN_SRC js 
   SelectionState.prototype.shiftClick = function (vp) {
-
-    if (this._geometry.extendPath(this._spath, vp) === null) return this;
-    this._cursor = activeEnd(this._spath);
+    if (this._modifyPathAndCursor(vp) === null) return this;
 
     if (this._queuedCommand.pending) return this;
-
     // pending is either false or not defined at all
-    this._queuedCommand = mkDelayedShiftClickCommand(this);
+
+    this._queuedCommand = makeDelayedShiftClickCommand(this);
     setTimeout(this._queuedCommand, 0);
     return this;
   }
 #+END_SRC
 
-Shift-click first extends the selection path and sets the cursor,
-except in the case that ~vp~ did not change the selection path.  Not
-setting the cursor seems to be the natural behavior.  Consider
-geometries where every selection space point is bound to some index,
-and some mouse locations (such as those outside the extents of any
-element) map to, say, ~null~.  In such a (likely common) setting,
-dragging the mouse past an element to a ~null~ location during a
-rubber band selection would cause the cursor location to be lost.
-Note that it is possible that ~_spath~ is empty after the ~extendPath~
-call, since ~extendPath~ can modify ~_spath~ in any way. This will
-make the cursor undefined, since ~activeEnd([])~ returns ~undefined~.
+Shift-click first extends the selection path and sets the cursor
+with ~_modifyPathAndCursor~; the return value ~null~ indicates that ~spath~
+was not changed and that a new selection domain need not be 
+computed.
 
-If a shift-click command is currently pending, nothing more needs to
-be done. Eventually that pending command will get to execute, with the
-selection path that was just extended with ~vp~.  In the case where no
-command is pending a new command is created with
-~mkDelayedShiftClickCommand~ and scheduled.
+If a shift-click command is currently pending, nothing more
+needs to be done. Eventually that pending command will get to
+execute, with the selection path that was was just extended with ~vp~.  
+Only when ~extendPath~ returns non-null and no command is pending, a
+new command is created with ~makeDelayedShiftClickCommand~ and
+scheduled.
 
-#+NAME: mk-delayed-shift-click-command
+#+NAME: make-delayed-shift-click-command
 #+BEGIN_SRC js 
-  function mkDelayedShiftClickCommand(sel) {
+  function makeDelayedShiftClickCommand(sel) {
     var cmd = function () {
       if (cmd.pending === false) return null; // the command has already been run
       cmd.pending = false;
 
-      if (sel._opsStatus !== ACTIVE_SHIFT_CLICK) { 
-        sel._opsStatus = ACTIVE_SHIFT_CLICK; 
+      if (sel._storageStatus !== ACTIVE_PATH) { 
+        sel._storageStatus = ACTIVE_PATH; 
         sel._addEmptyPair(); 
-        
-        // call selectionGeometry once with an empty path and J undefined so
-        // that cache is cleared
-        sel._geometry.selectionDomain([]);
       }
 
-      var changed = makeEmptyMap();
-      var op = sel._ops.pop();
+      var changed = sel._makeEmptyTrackingSet();
+      var op = sel._storage.pop(changed);
+
       var mode = op.f;
+      var J = sel._geometry.selectionDomain(sel._spath, op.domain, sel._spathCache);
 
-      var oldJ = sel._tracking ? copyMap(op.domain) : op.domain;
-
-      var J = sel._geometry.selectionDomain(sel._spath, oldJ);
-
-      if (sel._tracking) {
-        mapSymmetricDifference(J, op.domain, true, false).forEach((function(value, i) {
-          var tmp = sel._current(i);
-          if (mode(tmp) === tmp) return;
-          if (value) changed.set(i, mode(tmp)); else changed.set(i, tmp);
-        }).bind(sel));
-      }
-
-      sel._ops.push(makeOp(mode, J));
-      sel._refresh(sel._tracking ? changed : sel._current);
+      sel._storage.push(makeOp(mode, J), changed);
+      sel._refresh(changed);
     };
 
     cmd.pending = true;
@@ -1218,49 +1410,38 @@ command is pending a new command is created with
   }
 #+END_SRC
 
-The parameter to ~mkDelayedShiftClickCommand~ is the selection state ~sel~. 
+The parameter ~sel~ to ~makeDelayedShiftClickCommand~ is the selection state. 
 The function constructs a command, marks it as pending, and returns it.
 
 Due to how the scheduling is arranged, a command may be executed more
 than once.  Therefore the command tests first if it is still pending
-or not, and returns immediately if it has already been executed.  When
-the command gets to be executed, it must check whether to add a new
-empty pair of selection operations. This is necessary, for example,
-after ~undo~, ~redo~, ~filter~, and ~reset~, but must not be done after a click,
-command-click or another shift-click.  This mechanism is to prevent
-shift-click from overwriting a selection domain that is already in a
-"committed" state. We make an extra call to ~selectionDomain~, so that
-there will always be a call with undefined ~J~ if an active set has
-been committed.
+or not, and returns immediately if it has already been executed.  
 
-After popping the topmost ~_ops~ element, the selection domain is
+When the command gets to execute, it must check whether to add a new
+empty pair of selection operations. Adding a new empty pair is
+necessary, for example, after ~undo~, ~redo~, and ~predicateSelect~, but it
+must not be done after a click, command-click or another shift-click.
+This mechanism is to prevent shift-click from overwriting a selection
+domain that is already in a "committed" state. 
+
+After popping the topmost ~_storage~ element, the selection domain is
 computed; the old selection domain is passed as a hint to the
 selection domain calculations. The ~selectionDomain~ function is
-allowed to modify the hint parameter ~oldJ~. If tracking is on, such
-modifications would cause errors. Therefore ~oldJ~ is a copy of the
-current selection domain if tracking is on.
+allowed to modify the hint parameter ~oldJ~; it is no longer
+used after it is popped from the storage, so it can be
+moved to a new primitive selection operation.
 
 The effect of the ~pop~ and ~push~ calls is to change the
 domain of the topmost selection operation, and thus to modify the
 current selection domain. The selection function of the operation
 remains the same. 
 
-The logic of tracking changes is as follows. Since shift-click only
-modifies the selection domain (~op.domain~ is replaced with ~J~), the
-only indices that need to be inspected are those that belong to ~J~
-but not to ~op.domain~ (added indices), and those that belong to
-~op.domain~ but not ~J~ (removed indices).  We construct a symmetric
-difference map of these indices, where added indices have the value
-~true~ and removed the value ~false~.  Then we detect if the current
-selection function (~mode~) changes those values, and if so, set the
-corresponding index in ~changed~ to the new value.
-
 *** Flush
 
 The ~_flush~ method is simply a call to the queued command. Flushing
 does not remove the queued command object; it may still be executed
 later by the main event loop or another call to ~_flush~. Hence, each
-command must know how to behave if executed more than once (they
+delayed command must know how to behave if executed more than once (they
 should be no-ops after the first invocation). Only ~shiftClick~ method schedules
 commands.
 
@@ -1275,20 +1456,20 @@ commands.
 
 Some selection contexts call for additional ways of manipulating the
 selection path. For example, the visualization of a lasso selection
-could make the corners of the lasso-polygon visible and draggable, so
-that the user could directly manipulate the selection path.  This
+could make the corners of the lasso-polygon visible and draggable.  This
 would require modifying an arbitrary point of the selection path, not
 just adding a point at the end. Such operations can be implemented via
 shift-click.
-
 The parameter ~vp~ in ~shiftClick(vp)~ does not have to be a selection
-space coordinate.  In particular, it can be an instruction on how the path should be
-modified (the ~vp~ object could even contain the entire new path as
-one of its fields).  The selection geometry's ~extendPath(spath, vp)~ method
-interprets the ~vp~ argument and decides how ~spath~ should be modified.  
-The client can implement arbitrary modification operations in this manner;
-the same delayed scheduling mechanism of shift-click commands applies regardless
-of how ~spath~ is modified.
+space coordinate.  In particular, it can be an instruction on how the
+path should be modified (the ~vp~ object could even contain the entire
+new path as one of its fields).  The selection geometry's
+~extendPath(path, vp, cache, cursor)~ method decides how ~path~ should be
+modified by ~vp~. The ~extendPath~ can also compute a new value for
+~cursor~ and pass it to the caller as a ~cursor~ member of the return value. 
+The client can implement arbitrary modification operations in this manner; the
+same delayed scheduling mechanism of shift-click commands applies
+regardless of how ~spath~ is modified.
 
 ** Analyzing elements under point
 
@@ -1297,26 +1478,22 @@ is on a selected element. Many selection contexts need this
 functionality, e.g., to decide whether to interpret a click as a
 selection operation or as a beginning of a drag-and-drop. The
 ~cmdClick~ function needs this same information for choosing between
-selecting and deselecting, but to obtain the information it uses the
-function ~_onSelectedIndex(J)~.  While ~onSelected~ calculates a
-selection domain from a selection space coordinate, ~_onSelectedIndex~
-uses directly the selection domain that ~cmdClick~ has already
-computed.  Both functions return ~true~ exactly when the selection
-domain (either computed or given as a parameter) is a singleton whose
-only element is selected.
+selecting and deselecting. Usually a click is considered to be on a
+selected element if it indicates exactly one selected element, that
+is, if the selection domain computed from the path consisting of the
+clicked point is a singleton whose only element is selected.  The
+criteria may, however, depend on the selection context, so therefore
+we delegate the decision to ~_storage.onSelected~ function.
 
 #+NAME: selection-state-on-selected
 #+BEGIN_SRC js 
   SelectionState.prototype.onSelected = function (vp) {
     this._flush();
     var path = [];
-    if (this._geometry.extendPath(path, vp) === null) return false;
-    var J = this._geometry.selectionDomain(path);
-    return this._onSelectedIndex(J);
-  };
-
-  SelectionState.prototype._onSelectedIndex = function (J) {
-    return isSingleton(J) && this.isSelected(firstKey(J)); // isSelected calls _flush
+    var r = this._geometry.extendPath(path, vp, {}, undefined); // called with a temporary empty cache and an undefined cursor
+    if (r !== undefined && r !== null && r.path !== null) path = r.path;
+    var J = this._geometry.selectionDomain(path, undefined, {}); // called with a temporary empty cache
+    return this._storage.onSelected(J);
   };
 #+END_SRC
 
@@ -1325,24 +1502,29 @@ only element is selected.
 #+NAME: selection-state-dummy-op-functions
 #+BEGIN_SRC js 
   SelectionState.prototype._addEmptyPair = function () {
-    this._ops.push(makeOp(id, makeEmptyMap()));
-    this._ops.push(makeOp(tt, makeEmptyMap()));
+    this._storage.push(makeOp(id, this._geometry.selectionDomain([], undefined, {})));
+    this._storage.push(makeOp(tt, this._geometry.selectionDomain([], undefined, {})));
   }
 #+END_SRC
 
+The calls to ~selectionDomain~ with an empty path and cache are to construct
+empty selection domains. 
+
+
 ** Baking
 
-The ~_bake~ function is a utility, called by ~click~ and ~cmdClick~ etc.,
-to remove the oldest two selection operations from ~_ops~ 
+The ~_bake~ function is a utility called by ~click~ and ~cmdClick~
+to remove the oldest two selection operations from ~_storage~ 
 when its maximum size is exceeded. 
 
 #+NAME: selection-state-bake
 #+BEGIN_SRC js 
   SelectionState.prototype._bake = function () {
-    if (this._ops.size() > this._maxOps) {
-      this._s.bake(this._ops.shift());
-      this._s.bake(this._ops.shift());
+    if (this._storage.size() > this._maxOps) {
+      this._storage.bake();
+      this._storage.bake();
     }
+    return this;
   }
 #+END_SRC
 
@@ -1352,17 +1534,17 @@ when its maximum size is exceeded.
   :END:
 
 Undoing and redoing is simply removing from and adding to the
-operation composition ~_ops~. Similar to other user operations, undo
+operation composition ~_storage~. Similar to other user operations, undo
 and redo push and pop primitive selection operations in pairs.  Both
-undo and redo leave the ~_ops~ stack in a state where the selection
+undo and redo leave the ~_storage~ stack in a state where the selection
 path is empty. 
 
 Both operations mark the commit status as ~ACTIVE_NONE~.  This is 
 important. Assume it was not done.  After undo some earlier selection
-operation ~op~ is at the top of ~_ops~. The selection path that
+operation ~op~ is at the top of ~_storage~ stack. The selection path that
 determined ~op~'s selection domain, however, is no longer available.
 Click and command-click would still behave well as they would not
-modify ~op~.  A shift-click at this state, however, would likely
+modify the top element. A shift-click at this state, however, would likely
 produce surprising results---shift-click replaces the topmost
 selection operation with a new operation that has a different domain,
 and would thus cause seemingly random elements to become either
@@ -1371,60 +1553,45 @@ shift-click is forced add a new empty pair of selection operations.
 
 #+NAME: selection-state-undo-redo
 #+BEGIN_SRC js 
-  SelectionState.prototype.undo = function () {
-    this._flush();
-    this._spath = [];
+      SelectionState.prototype.undo = function () {
+        this._flush();
 
-    var changed = makeEmptyMap();
-    if (this._ops.size() >= 2) {
-      if (this._tracking) {
-        for (var i of this._ops.top().domain.keys()) changed.set(i, this._current(i));
-        for (var i of this._ops.top2().domain.keys()) changed.set(i, this._current(i));
+        if (this._storage.size() >= 2) {
+          var changed = this._makeEmptyTrackingSet();
+          this._redoStack.push(this._storage.pop(changed));
+          this._redoStack.push(this._storage.pop(changed));
+          this._refresh(changed);
+          this._spath = [];
+          this._spathCache = {};
+
+          this._storageStatus = ACTIVE_NONE;
+ 
+          // redoStack is not cleared ever,
+          // so we limit its size (to the same as that of undo stack)
+          if (this._redoStack.length > this._maxOps) {
+            this._redoStack.shift();
+            this._redoStack.shift();
+          }
+        }
+        return this;
       }
-      this._redoStack.push(this._ops.pop());
-      this._redoStack.push(this._ops.pop());
-    }
-    if (this._tracking) {
-      for (var i of changed.keys()) {
-        if (changed.get(i) === this._current(i)) changed.delete(i);
-        else changed.set(i, this._current(i));
+
+      SelectionState.prototype.redo = function () {
+        this._flush();
+
+        if (this._redoStack.length >= 2) {
+          var changed = this._makeEmptyTrackingSet();
+          this._storage.push(this._redoStack.pop(), changed);
+          this._storage.push(this._redoStack.pop(), changed);
+          this._refresh(changed);
+
+          this._spath = [];
+          this._spathCache = {};
+          this._storageStatus = ACTIVE_NONE;
+        }
+  
+        return this;
       }
-    }
-
-    // redoStack is not cleared ever,
-    // so we limit its size (to the same as that of undo stack)
-    if (this._redoStack.length > this._maxOps) {
-      this._redoStack.shift();
-      this._redoStack.shift();
-    }
-    this._opsStatus = ACTIVE_NONE;
-    this._refresh(this._tracking ? changed : this._current);
-    return this;
-  }
-
-  SelectionState.prototype.redo = function () {
-    this._flush();
-    this._spath = [];
-
-    var changed = makeEmptyMap();
-    if (this._redoStack.length >= 2) {
-      var op = this._redoStack.pop();
-      if (this._tracking) for (var i of op.domain.keys()) changed.set(i, this._current(i));
-      this._ops.push(op);
-      op = this._redoStack.pop();
-      if (this._tracking) for (var i of op.domain.keys()) changed.set(i, this._current(i));
-      this._ops.push(op);
-    }
-    if (this._tracking) {
-      for (var i of changed.keys()) {
-        if (changed.get(i) === this._current(i)) changed.delete(i);
-        else changed.set(i, this._current(i));
-      }
-    }
-    this._opsStatus = ACTIVE_NONE;
-    this._refresh(this._tracking ? changed : this._current);
-    return this;
-  }
 #+END_SRC
 
 Undo and redo clear the selection path, but do not modify the cursor.
@@ -1435,15 +1602,6 @@ selecting with the keyboard.  One could imagine preserving the anchor
 from the path; it could be useful in some cases, but it could also
 lead to surprising behavior if the next command after undo was
 shift-click.
-
-Tracking changes in ~undo~ first constructs a candidate ~changed~ map
-and populates it with elements that are in either of the two topmost
-selection operations in ~_ops~. After popping the
-operations, the elements that did not change are removed, and the
-values of those that did are set to the current selection state.
-Change tracking in ~redo~ is similar, except that the candidate
-set is the union of domains of the two topmost selection 
-operations in the redo stack.
 
 The semantics of ~redo~ could be chosen differently; any click
 operation could clear the entire ~redo~ stack.  We chose to not do
@@ -1461,93 +1619,92 @@ undo stack.
 
 Some applications provide means to select or deselect elements based
 on properties of the elements, such as selecting all file names that
-end with "~.pdf~".  The ~filter(predicate, state)~ method implements
-this functionality.  It relies on the selection geometry's
+end with "~.pdf~".  The ~predicateSelect(predicate, state)~ method
+implements this functionality.  It relies on the selection geometry's
 ~filter(predicate)~ method to compute the subset of the indices that
-satisfy ~predicate~, to be used as the new selection domain.  If state
-is ~false~, the effect is to deselect, otherwise to select.  A
-~filter~ call following another ~filter~ call with the same ~state~
-replaces the topmost selection operation (so it modifies the active
-set and behaves analogously to shift-click in this sense); all other
-calls first add a new pair of selection operations.
+satisfy ~predicate~, to be used as the new selection domain.  If
+~state~ is ~false~, the effect is to deselect, otherwise to select.  A
+~predicateSelect~ call following another ~predicateSelect~ call with
+the same ~state~ replaces the topmost selection operation (so it
+modifies the active selection domain and behaves analogously to
+shift-click in this sense); all other calls first add a new pair of
+selection operations.
 
-#+NAME: selection-state-filter
+#+NAME: selection-state-predicate-select
 #+BEGIN_SRC js
-SelectionState.prototype.filter = function (predicate, state) {
-  if (state !== false) mode = tt; else mode = ff;
+  SelectionState.prototype.predicateSelect = function (predicate, state) {
+    if (state !== false) mode = tt; else mode = ff;
 
-  this._flush();
-  this._spath = [];
-  if (this._opsStatus !== ACTIVE_FILTER || 
-      this._ops.size() >= 2 && this._ops.top().f !== mode) { // filter mode changed
-    this._opsStatus = ACTIVE_FILTER; 
-    this._addEmptyPair(); 
+    this._flush();
+
+    if (this._storageStatus !== ACTIVE_PREDICATE || 
+        this._storage.size() >= 2 && this._storage.top().f !== mode) { // mode changed
+      this._storageStatus = ACTIVE_PREDICATE; 
+      this._spath = [];
+      this._spathCache = {};
+      this._addEmptyPair(); 
+    }
+
+    var J = this._geometry.filter(predicate);
+
+    var changed = this._makeEmptyTrackingSet();
+    this._storage.pop(changed);
+    this._storage.push(makeOp(mode, J), changed);
+    this._refresh(changed);
+
+    return this;
   }
-
-  var changed = makeEmptyMap();
-  var J = this._geometry.filter(predicate);
-  var op = this._ops.pop();
-
-  var self = this;
-  if (this._tracking) {
-    mapSymmetricDifference(J, op.domain, true, false).forEach((function(value, i) {
-      var tmp = self._current(i);
-      if (mode(tmp) === tmp) return;
-      if (value) changed.set(i, mode(tmp)); else changed.set(i, tmp);
-    }).bind(self));
-  }
-
-  this._ops.push(makeOp(mode, J));
-
-  this._refresh(this._tracking ? changed : this._current);
-  return this;
-}
 #+END_SRC
 
-The ~commit~ function makes the current state not active, so that
-a subsequent filter operation (and a shift-click operation) will be forced to add a new 
-selection operation pair.
+The ~commit~ function makes the current state not active, so that a
+subsequent predicate-selection operation (and a shift-click operation) will be
+forced to add a new selection operation pair.
 
 #+NAME: selection-state-commit
 #+BEGIN_SRC js
 SelectionState.prototype.commit = function () {
   this._flush();
-  this._opsStatus = ACTIVE_NONE;
+  this._storageStatus = ACTIVE_NONE;
 }
 #+END_SRC
 
+** Setting selection geometry
 
-** Set geometry
+The selection geometry object may change in such a way as to require
+resetting the selection path. For example, if the positions of
+selectable elements change on a window, then selection space points
+may no longer correspond to the same elements; invoking
+~selectionDomain~ again for the current selection path might produce a
+different result. The ~resetPath~ function is for clearing the path in
+such situations.
 
-The selection geometry object may change
-in such a way as to require resetting the selection path. For example, if the 
-positions of selectable elements change on a window, then selection space points 
-may no longer correspond to the same elements; invoking ~selectionDomain~ again for
-the current selection path might produce a different result. The ~resetPath~ function 
-is for clearing the path in such situations.
-
-Prior to changing the path, the possible pending command must be flushed.
-Further, a commit is necessary so that if the next operation is
-shift-click or filter, the previous selection domain is not ``hijacked''.
+Prior to changing the path, the possible pending command must be
+flushed.  Further, a commit is necessary so that if the next operation
+is shift-click or predicate-selection, the previous selection domain
+is not ``hijacked''.
 
 #+NAME: selection-state-reset-path
 #+BEGIN_SRC js
   SelectionState.prototype.resetPath = function () {
-    this._flush(); 
-    this._spath = []; this._cursor = undefined;
     this.commit();
+    this._spath = []; 
+    this._spathCache = {};
+    this._cursor = undefined;
     return this;
   }
 #+END_SRC
 
-# FIXME: is there a way to catch a resize event and force a flush
+# is there a way to catch a resize event and force a flush
 # before?  Otherwise it would be possible to get a resetPath
 # call where flush is called and a pending shift click called when
 # geometry object has already been modified.  (Very very unlikely in
-# practice, but in theory possible.)
+# practice, but in theory possible.) 
+#
+# It may be that this is unavoidable if geometry relies on DOM
+# objects' positions directly, instead of a copy of them.
 
 The entire selection geometry can be changed on the fly. 
-Prior to doing this, the path must be reset.  
+Prior to doing this, path and cursor must be reset.  
 
 #+NAME: selection-state-set-geometry
 #+BEGIN_SRC js
@@ -1558,6 +1715,87 @@ Prior to doing this, the path must be reset.
   }
 #+END_SRC
 
+** Changes to geometry
+
+Some changes to the geometry may be such that a full ~resetPath~ is not
+necessary, and that the cursor or even the path can be preserved.
+We consider four kinds of changes to the selection geometry.
+
+1. An element is added to the indexed family.
+2. An element is removed from the indexed family.
+3. The elements' locations change.
+4. The elements' order changes.
+
+We distinguish between two kinds of selection geometries: /ordered/
+and /unordered/. In ordered geometries, the selection space
+coordinates form a (possibly only partial) order. In an ordered
+geometry, adding or removing an element might mean that the selection
+space coordinates of some of the existing elements change, similarly
+for when the elements' order changes.  In an unordered geometry, the
+selection space coordinates change only when the elements' location
+changes.
+
+The representation for selection domains can also be ordered
+or unordered. For example, a bit-vector representation is 
+ordered. Thus, inserting or removing elements may necessitate
+shifting the representation left or right. 
+
+The selection state must be updated to reflect changes in the
+selection geometry. Both the current selection state in ~_storage~ and
+the selection path and cursor may have to be modified. We can identify
+commonalities in how to handle these kinds of changes in different
+types of coordinate systems and selection storages.  However, instead
+of providing a large number of operations for various types of
+changes, we provide general mechanisms for performing an arbitrary
+change to the selection storage and to the selection path and keyboard
+cursor. The selection storage can be modified 
+using the ~modifyStorage~ function, which merely delegates
+to the selection storage object. The ~cmd~ parameter can 
+be any value the storage object understands.
+
+#+NAME: selection-state-modify-storage
+#+BEGIN_SRC js
+  SelectionState.prototype.modifyStorage = function (cmd) {
+    this._flush();
+    this._storage.modifyStorage(cmd);
+    return this;
+  }
+#+END_SRC
+
+The selection path and cursor can be modified using the ~modifyPath~
+function.
+
+#+NAME: selection-state-modify-path
+#+BEGIN_SRC js
+  SelectionState.prototype.modifyPath = function (vp) {
+    this._flush();
+    this._modifyPathAndCursor(vp);
+    return this;
+  }
+#+END_SRC
+
+The parameter ~vp~ can be any object or value, and it signifies how the 
+path and cursor should be modified. Similarly to ~shiftClick(vp)~, 
+~modifyPath(vp)~ delegates these modifications to ~extendPath~.
+The ~extendPath~ function should thus be written to accept all possible
+path modification commands, whether they come via ~shiftClick~ or
+via ~modifyPath~.
+
+The ~modifyPath~ function first calls ~_flush~, so that the current
+selection domain and selection path are in sync. 
+
+# One way to characterize the relation of ~modifyPath~ and
+# ~shiftClick~ is as follows: if ~s~ is a selection state object and
+# ~s.geometry().extendPath(this._spath, vp, {}, undefined)~ returns
+# ~null~, then ~s.modifyPath(vp)~ is equivalent to ~s._flush();
+# s.shiftClick(vp)~.
+
+To give an example of when ~modifyPath~ might be used, consider an
+ordered selection geometry where the selection space coordinates are
+element indices.  The selection path might be ~[2, 5]~, to indicate
+the range of elements from ~2~ to ~5~, and the cursor ~5~. If, say,
+the element ~3~ was removed, the path should be updated to ~[2, 4]~
+and the cursor to ~4~.
 
 ** Access functions
    :PROPERTIES:
@@ -1576,34 +1814,32 @@ SelectionState.prototype.selectionPath = function () { return this._spath; }
 
 The client needs to access the geometry object for the ~m2v~ method
 that transforms mouse coordinate points to selection space, and
-possibly to obtain the cursor and selection path to visualize the keyboard
+the cursor and selection path to visualize the keyboard
 cursor, anchor, and rubber band. Other than making these pieces of data
 readily available, {{{msjs}}} leaves the visualization to the client.
 
 ** Keyboard operations
 
 Keyboard operations are simple wrappers over ~click~, ~cmdClick~ and
-~shiftClick~ functions. Each of the ~space~ function has the same
-effect as a similarly modified ~click~ function on the position
+~shiftClick~ functions. Each of the space functions has the same
+effect as a similarly modified click function on the position
 indicated by the keyboard cursor. If a cursor cannot be established,
-however, we choose to do nothing (rather than call the corresponding
+we choose to do nothing (rather than call the corresponding
 click method with ~undefined~). Because the keyboard operations
 delegate to click methods, ~_flush~ calls are not needed.
 
 #+NAME: selection-state-space-functions
 #+BEGIN_SRC js 
-function valueOrDefault(a, def) { return a === undefined ? def : a; }
-
 SelectionState.prototype.space = function () {
   if (!this._acquireCursor(NO_DIRECTION)) return this;
   return this.click(this._cursor);
 };
 SelectionState.prototype.cmdSpace = function (dir) {
-  if (!this._acquireCursor(valueOrDefault(dir, NO_DIRECTION))) return this;
+  if (!this._acquireCursor(or_default(dir, NO_DIRECTION))) return this;
   return this.cmdClick(this._cursor);
 };
 SelectionState.prototype.shiftSpace = function (dir) {
-  if (!this._acquireCursor(valueOrDefault(dir, NO_DIRECTION))) return this; 
+  if (!this._acquireCursor(or_default(dir, NO_DIRECTION))) return this; 
   return this.shiftClick(this._cursor);
 };
 #+END_SRC
@@ -1620,7 +1856,7 @@ for down arrow could be a point indicating the first index, and up arrow the las
 #+NAME: selection-state-acquire-cursor
 #+BEGIN_SRC js 
   SelectionState.prototype._acquireCursor = function (dir) {
-    this._cursor = valueOrDefault(this._cursor, this._geometry.defaultCursor(dir));
+    this._cursor = or_default(this._cursor, this._geometry.defaultCursor(dir));
     return !(this._noCursor());
   }
   SelectionState.prototype._noCursor = function () { return this._cursor === undefined; }
@@ -1630,8 +1866,8 @@ Note that the client calls ~space~, ~cmdSpace~, or ~shiftSpace~
 without an argument, and thus ~dir~ is undefined. Thus, if ~_cursor~ is
 not defined, the default is queried with ~NO_DIRECTION~. The arrow
 methods call the ~cmdSpace~ and ~shiftSpace~ methods with a direction
-argument, and therefore the default is queried with that direction
-value.
+argument, and therefore the default is queried with that same direction
+argument.
 
 The arrow methods are as follows:
 
@@ -1648,16 +1884,16 @@ SelectionState.prototype.cmdArrow = function (dir) {
 };
 SelectionState.prototype.shiftArrow = function (dir) {
   if (this._noCursor()) return this.shiftSpace(dir);
-  else return this.arrow(dir).shiftSpace(dir);
+  if (this._spath.length == 0) this.shiftSpace(dir);
+  return this.arrow(dir).shiftSpace(dir);
 }
 #+END_SRC
 
-In all three arrow methods, if the cursor is undefined
-the cursor position is taken to be whatever default the 
-geometry provides. Shift-arrow does not move the 
-cursor before the ~shiftSpace~ call and command-arrow 
-does not move it after the ~cmdSpace~ call. This seems like
-the most natural behavior.
+In all three arrow methods, if the cursor is undefined the cursor
+position is taken to be whatever default the geometry provides. The
+~shiftArrow~ function does not move the cursor before the ~shiftSpace~
+call and ~cmdArrow~ does not move it after the ~cmdSpace~
+call. This seems like the most natural behavior.
 
 *** Keyboard tests                                                 :noexport:
 
@@ -1673,7 +1909,7 @@ the most natural behavior.
     s.shiftArrow(M.UP); s.shiftArrow(M.DOWN); s.shiftArrow(M.LEFT); s.shiftArrow(M.RIGHT); 
     // all of these should be no-ops, because there is no cursor yet
     // and the default geometry has no default for it
-    t.equal(s._ops.size(), 2, "kbd 1");
+    t.equal(s._storage.size(), 2, "kbd 1");
     
     s.click(1); 
     t.equal(cur(1), true, "kbd 2");
@@ -1716,7 +1952,6 @@ the most natural behavior.
   });
 #+END_SRC
 
-
 * Selection geometries
   :PROPERTIES:
   :CUSTOM_ID: sec-selection-geometries
@@ -1728,34 +1963,24 @@ into a /selection geometry/ object.  The library provides the
 classes can inherit. 
 
 #+NAME: default-geometry
-#+BEGIN_SRC js
-<<set-and-map-functions>>
+#+BEGIN_SRC js :noweb strip-export
+  var DefaultGeometry = function () {};
 
-var DefaultGeometry = function () {};
-
-DefaultGeometry.prototype = {
-  m2v : function (mp) { return mp; },
-  extendPath : function (spath, vp) { spath.push(vp); },
-  step : function (dir, vp) { return vp; },
-  selectionDomain : function(spath, J) { 
-    var m = makeEmptyMap();
-    for (var i of spath) m.set(i, true); 
-    return m;
-  },
-  defaultCursor : function(dir) { return undefined; },
-  filter : undefined
-};
+  DefaultGeometry.prototype = {
+    m2v : function (mp) { return mp; },
+    extendPath : function (path, vp, cache, cursor) { path.push(vp); },
+    step : function (dir, vp) { return vp; },
+    selectionDomain : function(spath, J, cache) { 
+      var m = new Map();
+      for (var i of spath) m.set(i, true); 
+      return m;
+    },
+    defaultCursor : function(dir) { return undefined; },
+    filter : undefined
+  };
 #+END_SRC
 
 The functions of a selection geometry are:
-
-  # - ~ordered()~
-  #   - Returns true if there is a total order for the indices $I$, 
-  #     such that ~selectionDomain~ always returns a contiguous subsequence of
-  #     indices drawn from $I$ considered as a sequence, 
-  #     ordered according to that total order. 
-  #     Coordinate systems for representing vertical and horizontal lists, and row-wise 
-  #     ordered text have this property.
       
   - ~m2v(mpoint)~
       
@@ -1764,44 +1989,99 @@ The functions of a selection geometry are:
     (see Section 3.2.3 in the manuscript).
     In the default geometry this mapping is an identity.
 
-  - ~extendPath(spath, p)~
+  - ~extendPath(path, p, cache, cursor)~
 
-    Extends the selection path with a new point (typically as a response to a
-    shift-click). The function modifies the ~spath~ argument.  The
-    return value ~null~ indicates that ~p~ did not affect ~spath~.
-    The function is allowed to modify ~spath~ in any way.
-    
-    The ~click~ and ~cmdClick~ functions call ~extendPath~
-    with ~spath === []~. This can be used as a signal to clear any
-    cache that the selection geometry might have (caches are discussed
-    with ~selectionDomain~ function below).
+    Extends the ~path~ with a new point ~p~ (typically as a
+    response to a shift-click) and possibly computes a new value for
+    the ~cursor~. The ~path~ argument is an array. 
+    The ~cache~ argument is an object to which the selection geometry
+    can store data between subsequent calls to ~extendPath~ and
+    ~selectionDomain~ functions to optimize the selection domain
+    calculations.
 
-    The ~onSelected~ function also calls ~extendPath~ with ~spath === []~.
+    The results are conveyed to the caller as follows:
+
+    - Modifications to ~path~ are visible to the caller.
+    - To indicate to the caller that the path did not change in a way 
+      that would require recomputing the selection domain, return
+      ~null~ or an object ~o~ where ~o.path~ is ~null~.
+    - To completely replace the current selection path with some new
+      path array ~path2~, return an object ~o~ for which ~o.path~ is ~path2~.
+    - To indicate that the cursor should be set to some new value
+      ~cursor2~, return an object ~o~ for which ~o.cursor~ is
+      ~cursor2~. Otherwise, when called from any of the click
+      functions or from ~modifyPath~, the cursor will be set to the last element of the
+      path.
     
-    The default geometry's implementation of ~extendPath~ pushes ~p~ to ~spath~.
+    The ~extendPath~ function is allowed to change the path and cursor 
+    in arbitrary ways.
+    
+    The ~click~ and ~cmdClick~ functions construct a new /current/ cache object ~{}~
+    and a new current path array ~[]~. Only ~click~, ~cmdClick~, 
+    ~shiftClick~, and ~modifyPath~ call ~extendPath~ with the current path, 
+    cursor, and cache object. 
+    All other calling contexts use fresh path and cache objects, and an undefined
+    cursror, and thus do not affect the current path, cache or cursor.
+
+    If a selection geometry uses caching, ~extendPath~ should thus initialize
+    the cache every time it receives an empty cache object.
+    All cache information should be stored to the cache object, not to the
+    selection geometry! It is OK, however, to cache some information to the selection 
+    geometry to be observed, say, in functions that visualize cursors and paths.
+    The guarantee that the library gives is that only the click functions
+    and ~modifyPath~ have access to and can modify the current cache object.
+    
+    Here is a sketch of how to use cache in ~extendPath~:
+    #+NAME: extend-path-skeleton
+    #+BEGIN_SRC js
+    extendPath = function(path, p, cache, cursor) { 
+      if (Object.keys({cache}).length == 0) {
+        // initialize cache
+      }      
+      // modify path and possibly cursor, use cache
+    }
+    #+END_SRC
+
+    The default geometry's implementation of ~extendPath~ pushes ~p~
+    to ~path~, does not use cache, and leaves the cursor modifications
+    to the caller.
 
   - ~step(dir, vp)~
     
     Given a direction ~dir~ and a selection space coordinate ~vp~,
-    computes a new selection space coordinate to be used as the new keyboard
-    cursor location. The possible values of ~dir~ are ~UP~, ~DOWN~, ~LEFT~, 
-    and ~RIGHT~. The ~step~ function is never called with ~NO_DIRECTION~.
+    ~step~ computes a new selection space coordinate to be used as the
+    keyboard cursor location. The possible values of ~dir~ are
+    ~UP~, ~DOWN~, ~LEFT~, and ~RIGHT~. The ~step~ function is never
+    called with ~NO_DIRECTION~.
 
     #+NAME: geometry-directions
     #+BEGIN_SRC js :exports none
       var UP = 1, DOWN = 2, LEFT = 3, RIGHT = 4, NO_DIRECTION = 0;
     #+END_SRC
 
-    The default is to return ~vp~, which means that arrow commands 
-    have no effect.
+    The default is to return ~vp~, which means that arrow commands
+    have no effect. The ~step~ function should not modify ~vp~ (it can
+    be an alias of an object on the selection path), but rather
+    construct a new point object and return that.
 
-  - ~selectionDomain(spath, J)~
+  - ~selectionDomain(spath, J, cache)~
     
-    Computes the selection domain, a set of indices (represented as
-    a ~Map~; only the keys matter, values are insignificant), from
-    the ~spath~ array of selection space points.  The first element
-    in this array is the /anchor/, the last the /active end/.  The
-    helper functions ~anchor~ and ~activeEnd~, part of the
+    Computes the selection domain, a set of indices from
+    the ~spath~ array of selection space points.  
+    ~J~ is a prior selection domain that may be useful
+    in computing a new one, and ~cache~ can be used to
+    store arbitrary data for the next ~selectionDomain~ call
+    for optimization purposes. The cache can also be updated
+    by calls to ~extendPath~.
+
+    The ~shiftClick~ function places the call to ~selectionDomain~
+    into a command that it schedules to be executed later (a
+    one-element-long queue is maintained for pending commands). Because of this,
+    the selection path (and cache and cursor) can be modified by calls to
+    ~extendPath~ several times between two calls to ~selectionDomain~.
+
+    The first element in ~spath~ is the /anchor/, the last the /active
+    end/.  The helper functions ~anchor~ and ~activeEnd~, part of the
     multiselect module's API, extract these values. Often only these
     elements are relevant for determining the selection domain.
 
@@ -1817,86 +2097,71 @@ The functions of a selection geometry are:
       };
     #+END_SRC
 
-    The ~J~ argument is defined when ~selectionDomain~ is called from
-    ~SelectionState~'s ~shiftClick~ method.  ~J~'s value is then the
-    current selection domain (computed by the most recent preceding
-    call to ~selectionDomain~).  The purpose of this parameter is to
-    allow the selection domain computation to take advantage of the
-    results of the previous computation and in this way compute a new
-    selection domain faster.  The client should always define
-    the ~selectionDomain~ function in such a way that if it is called with
-    no arguments other than a selection path, it correctly computes
-    the selection domain.
+    The ~J~ argument is defined only when ~selectionDomain~ is called
+    from ~SelectionState~'s ~shiftClick~ method. It is then the
+    current selection domain, computed by the previous call to
+    ~selectionDomain~.  It is not necessary to construct a copy of
+    ~J~; it can be modified in-place.
 
-    The ~shiftClick~ function places the call to ~selectionDomain~
-    into a command that it schedules to be executed later (a
-    one-element-long queue is maintained for pending commands), so
-    that the selection path can be modified (by calls to ~extendPath~)
-    several times between two consecutive calls to ~selectionDomain~.
-
+    The ~cache~ argument can be something other than ~{}~ only when
+    ~J~ is defined.  A new empty cache is created at click and
+    command-click (and after undo, redo, etc.). This cache object is
+    stored in the selection state object as the current cache. The
+    same current cache shared with the ~extendPath~ function, which
+    can modify it too.
+ 
     A skeleton for how to take advantage of the previous selection
-    domain ~J~ is below. If ~J~ is undefined, the call came from some
-    other operation than ~shiftClick~ (or from of ~shiftClick~ that
-    added an empty pair), and thus the cache should be cleared.  Note
-    that it is not necessary to take a copy of ~J~; it can be modified
-    in-place. That ~J~ is undefined indicates a call from some other
-    source than shift-click, which can be used as a signal to clear
-    the cache. The ~extendPath~ function can also be used to clear a
-    cache.
-     
+    domain ~J~ and ~cache~ is shown below. 
+         
     #+NAME: selection-domain-skeleton
     #+BEGIN_SRC js
-    selectionDomain = function(spath, J) { 
+    selectionDomain = function(spath, J, cache) { 
+      if (Object.keys({cache}).length == 0) {
+        // initialize cache
+      } 
       if (J === undefined) {
-        J = makeEmptyMap(); 
-        // clear cache
-        // populate J from scratch, start caching
-      } else {
-        // modify J based on cache
+        // create a new selection domain object, e.g., as:
+        J = new Map(); 
+      }
+      // populate J, possibly using cache
       }
       return J;
     }
     #+END_SRC
+
+    Note that ~selectionDomain~ and ~extendPath~ functions are called
+    from several contexts in the library (notably from
+    ~isSelected~). These calls always have ~J~ undefined, and they use
+    a new empty cache object that does not interfere with the current
+    cache.
 
     If ~spath~ has exactly one element, call it $p$, the computed
     selection domain should have at most one element. In selection
     geometries that allow overlapping elements, one might for example
     return the singleton set consisting of the index of the topmost
     element under $p$.  This requirement is not strict---nothing
-    breaks if it is not followed, but the selection behavior might be
-    unconventional since in most applications clicks and
-    command-clicks can only select one element at a time.
+    breaks if it is not followed, but the established convention is
+    that clicks and command-clicks can only select one element 
+    at a time.
 
     The default geometry defines ~selectionDomain~ to map the path
     elements to the elements of the selection domain.
 
   - ~defaultCursor(dir)~
-    - The ~defaultCursor(dir)~ function provides default values for
-      the keyboard cursor.  It is called from either the space or
-      arrow methods, when no cursor has yet been established (e.g., by
-      some click command).  When called as a result of pressing one of
-      the arrow keys, ~defaultCursor~ receives the parameter ~dir~ to
-      indicate which arrow key was pressed---the default may depend on
-      the key. For example, in a horizontally stacked sequentially
-      ordered elements, the down-arrow could start at the topmost
-      element, whereas the up-arrow from the bottom element.  When
-      ~defaultCursor(dir)~ is called as a result of pressing space,
-      ~dir~ has value ~NO_DIRECTION~.  It is fine to return
-      ~undefined~ from ~defaultCursor(dir)~; nothing breaks, except that 
-      there will be no default values.
+
+    The ~defaultCursor(dir)~ function provides default values for the
+    keyboard cursor.  It is called from either the space or arrow
+    methods, when no cursor has yet been established.  When called as
+    a result of pressing one of the arrow keys, ~defaultCursor~
+    receives the parameter ~dir~ to indicate which arrow key was
+    pressed---the default may depend on the key. For example, with
+    horizontally stacked sequentially ordered elements, the down-arrow
+    could start at the topmost element and the up-arrow from the
+    bottom element.  When ~defaultCursor(dir)~ is called as a result
+    of pressing space, ~dir~ has value ~NO_DIRECTION~.  It is fine to
+    return ~undefined~ from ~defaultCursor(dir)~; nothing
+    breaks. There just will be no default value.
   
-
-  # - ~boundToElement(vpoint)~
-  #   - If a selection space point is bound to an element (~v2i(vpoint)
-  #     !== undefined~), returns true, otherwise false.
-
-  #     When re-positioning elements in the client view, e.g., as a result of a window resizing
-  #     or change of elements' sorting order, the selection domain computed from 
-  #     the current selection path may change and thus the path should be discarded.
-  #     In some coordinate systems points on the selection path,
-  #     can be bound to an element, and thus
-  #     re-position along with the element they are bound to.
-
 
 ** ~SelectionState~ tests                                  :noexport:ARCHIVE:
 
@@ -1926,13 +2191,13 @@ The functions of a selection geometry are:
     var s = new M.SelectionState(new G.OrderedGeometry(20));
     function cur(i) { return s.isSelected(i); }
 
-    s.shiftClick(1); s._flush();
+    s.shiftClick(1); 
     t.ok(arrayEquals([0, 1, 2].map(cur), [false, true, false]), "shiftClick 1");
-    s.shiftClick(2); s._flush();
+    s.shiftClick(2); 
     t.ok(arrayEquals([0, 1, 2].map(cur), [false, true, true]), "shiftClick 2");
-    s.shiftClick(1); s._flush();
+    s.shiftClick(1); 
     t.ok(arrayEquals([0, 1, 2].map(cur), [false, true, false]), "shiftClick 3");
-    s.shiftClick(0); s._flush();
+    s.shiftClick(0); 
     t.ok(arrayEquals([0, 1, 2].map(cur), [true, true, false]), "shiftClick 4");
 
     s.click(null);
@@ -1970,70 +2235,74 @@ The functions of a selection geometry are:
     var s = new M.SelectionState(new G.OrderedGeometry(20), function(){}, false, 20);
     function cur(i) { return s.isSelected(i); }
 
-    t.equal(s._ops.size(), 0, "repeat cmdClick 0"); 
+    t.equal(s._storage.size(), 0, "repeat cmdClick 0"); 
     s.cmdClick(1); // mode after is tt
-    t.equal(s._ops.size(), 2, "repeat cmdClick 1"); 
+    t.equal(s._storage.size(), 2, "repeat cmdClick 1"); 
     t.ok(cur(1));
     s.cmdClick(1); // mode after is ff
-    t.equal(s._ops.size(), 4, "repeat cmdClick 2"); 
+    t.equal(s._storage.size(), 4, "repeat cmdClick 2"); 
     t.ok(!cur(1));
     // clicks on negative coordinates give an empty J
     s.cmdClick(-1); // mode after is tt, since mode was ff, should push
-    t.equal(s._ops.size(), 6, "repeat cmdClick 3");
+    t.equal(s._storage.size(), 6, "repeat cmdClick 3");
     s.cmdClick(-1); // this now should not push
-    t.equal(s._ops.size(), 6, "repeat cmdClick 4");
+    t.equal(s._storage.size(), 6, "repeat cmdClick 4");
     s.cmdClick(-2); // nor this
-    t.equal(s._ops.size(), 6, "repeat cmdClick 5");
-    s.shiftClick([1]); 
-    t.ok(s.isSelected(1), "repeat cmdClick is 1 selected");
-    t.equal(s._ops.size(), 6, "repeat cmdClick 5b");
+    t.equal(s._storage.size(), 6, "repeat cmdClick 5");
+    t.ok(!cur(1), "repeat cmdClick is 1 selected");
+    s.shiftClick(1); 
+    t.ok(cur(1), "repeat cmdClick is 1 selected");
+    t.equal(s._storage.size(), 6, "repeat cmdClick 5b");
     s.cmdClick(-1);
-    t.equal(s._ops.size(), 8, "repeat cmdClick 6a");
-    t.equal(s._ops.top().f, M.detail.tt, "repeat cmdClick 6b");
-    s.shiftClick([10, -1]); 
+    t.equal(s._storage.size(), 8, "repeat cmdClick 6a");
+    // test that the topmost is tt function (a const true function)
+    var func = s._storage.top().f;
+    t.ok(func(true) && func(false), "repeat cmdClick 6b");
+    s.shiftClick(10);
+    s.shiftClick(-1); 
     s.cmdClick(-1); // should not push
-    t.equal(s._ops.size(), 8, "repeat cmdClick 7");
+    t.equal(s._storage.size(), 8, "repeat cmdClick 7");
 
     // reset s
     s = new M.SelectionState(new G.OrderedGeometry(20), function(){}, false, 20);
     s.cmdClick(1); 
-    t.equal(s._ops.size(), 2, "repeat cmdClick 2 1");
+    t.equal(s._storage.size(), 2, "repeat cmdClick 2 1");
     s.cmdClick(1); 
-    t.equal(s._ops.size(), 4, "repeat cmdClick 2 2");
+    t.equal(s._storage.size(), 4, "repeat cmdClick 2 2");
     s.cmdClick(-1); 
-    t.equal(s._ops.size(), 6, "repeat cmdClick 2 3");
+    t.equal(s._storage.size(), 6, "repeat cmdClick 2 3");
 
     // reset s
     s = new M.SelectionState(new G.OrderedGeometry(20), function(){}, false, 20);
 
     s.click(1); 
-    t.equal(s._ops.size(), 2, "repeat click 1");
+    t.equal(s._storage.size(), 2, "repeat click 1");
     s.click(1); 
-    t.equal(s._ops.size(), 2, "repeat click 2");
+    t.equal(s._storage.size(), 2, "repeat click 2");
 
     s.click(2); 
-    t.equal(s._ops.size(), 4, "repeat click 3");
+    t.equal(s._storage.size(), 4, "repeat click 3");
     s.click(-1); 
-    t.equal(s._ops.size(), 6, "repeat click 4");
+    t.equal(s._storage.size(), 6, "repeat click 4");
     s.click(-2); 
-    t.equal(s._ops.size(), 6, "repeat click 5");
+    t.equal(s._storage.size(), 6, "repeat click 5");
 
     s.cmdClick(1); 
-    t.equal(s._ops.size(), 8, "repeat click 8");
+    t.equal(s._storage.size(), 8, "repeat click 8");
     s.click(1); 
-    t.equal(s._ops.size(), 10, "repeat click 9");
+    t.equal(s._storage.size(), 10, "repeat click 9");
     s.cmdClick(1); 
-    t.equal(s._ops.size(), 12, "repeat click 10");
+    t.equal(s._storage.size(), 12, "repeat click 10");
     s.click(-1); 
-    t.equal(s._ops.size(), 14, "repeat click 11");
+    t.equal(s._storage.size(), 14, "repeat click 11");
 
     s = new M.SelectionState(new G.OrderedGeometry(20), function(){}, false, 20);
 
-    t.equal(s._ops.size(), 0, "shift-click size 0");
-    s.shiftClick([1]); s._flush();
-    t.equal(s._ops.size(), 2, "shift-click size 1");
-    s.shiftClick([2]); s._flush();
-    t.equal(s._ops.size(), 2, "shift-click size 2");
+    t.equal(s._storage.size(), 0, "shift-click size 0");
+    s.shiftClick(1); s._flush();
+    t.equal(s._storage.size(), 2, "shift-click size 1");
+    s.shiftClick(2); s._flush();
+    t.equal(s._storage.size(), 2, "shift-click size 2");
   });
 
 
@@ -2058,40 +2327,40 @@ The functions of a selection geometry are:
     function cur(i) { return s.isSelected(i); }
 
     s.cmdClick(1);
-    t.equal(s._ops.size(), 2);
+    t.equal(s._storage.size(), 2);
     t.deepEqual([0, 1, 2].map(cur), [false, true, false], "undoable action 1");
     s.cmdClick(2);
-    t.equal(s._ops.size(), 4);
+    t.equal(s._storage.size(), 4);
     t.deepEqual([0, 1, 2].map(cur), [false, true, true], "undoable action 2");
     s.cmdClick(1);
-    t.equal(s._ops.size(), 6);
+    t.equal(s._storage.size(), 6);
     t.deepEqual([0, 1, 2].map(cur), [false, false, true], "undoable action 3");
     s.cmdClick(0);
-    t.equal(s._ops.size(), 8);
+    t.equal(s._storage.size(), 8);
     t.deepEqual([0, 1, 2].map(cur), [true, false, true], "undoable action 2");
     s.click(0);
-    t.equal(s._ops.size(), 10);
+    t.equal(s._storage.size(), 10);
     t.deepEqual([0, 1, 2].map(cur), [true, false, false], "undo 0");
     s.undo();
-    t.equal(s._ops.size(), 8);
+    t.equal(s._storage.size(), 8);
     t.deepEqual([0, 1, 2].map(cur), [true, false, true], "undo 1");
     s.undo();
-    t.equal(s._ops.size(), 6);
+    t.equal(s._storage.size(), 6);
     t.deepEqual([0, 1, 2].map(cur), [false, false, true], "undo 2");
     s.undo();
-    t.equal(s._ops.size(), 4);
+    t.equal(s._storage.size(), 4);
     t.deepEqual([0, 1, 2].map(cur), [false, true, true], "undo 3");
     s.undo();
-    t.equal(s._ops.size(), 2);
+    t.equal(s._storage.size(), 2);
     t.deepEqual([0, 1, 2].map(cur), [false, true, false], "undo 4");
     s.undo();
-    t.equal(s._ops.size(), 0);
+    t.equal(s._storage.size(), 0);
     t.deepEqual([0, 1, 2].map(cur), [false, false, false], "undo 5");
     s.undo();
-    t.equal(s._ops.size(), 0);
+    t.equal(s._storage.size(), 0);
     t.deepEqual([0, 1, 2].map(cur), [false, false, false], "undo 5 again");
     s.undo();
-    t.equal(s._ops.size(), 0);
+    t.equal(s._storage.size(), 0);
 
     function m2a(m) {
       var a = [false, false, false]; 
@@ -2100,41 +2369,41 @@ The functions of a selection geometry are:
     }
     var changed = null;
     s = new M.SelectionState(new G.OrderedGeometry(20),
-                             function (smap) { changed = m2a(smap); }, true);
+                             function (m, smap) { changed = m2a(smap); }, true);
     s.cmdClick(1);
     t.deepEqual(changed, [false, true, false], "undoable action 1");
     s.cmdClick(2);
-    t.equal(s._ops.size(), 4);
+    t.equal(s._storage.size(), 4);
     t.deepEqual([0, 1, 2].map(cur), [false, true, true], "undoable action 2");
     s.cmdClick(1);
-    t.equal(s._ops.size(), 6);
+    t.equal(s._storage.size(), 6);
     t.deepEqual([0, 1, 2].map(cur), [false, false, true], "undoable action 3");
     s.cmdClick(0);
-    t.equal(s._ops.size(), 8);
+    t.equal(s._storage.size(), 8);
     t.deepEqual([0, 1, 2].map(cur), [true, false, true], "undoable action 2");
     s.click(0);
-    t.equal(s._ops.size(), 10);
-    t.deepEqual([0, 1, 2].map(cur), [true, false, false], "undo 0");
+    t.equal(s._storage.size(), 10);
+    t.deepEqual([0, 1, 2].map(cur), [true, false, false], "undo 0b");
     s.undo();
-    t.equal(s._ops.size(), 8);
-    t.deepEqual([0, 1, 2].map(cur), [true, false, true], "undo 1");
+    t.equal(s._storage.size(), 8);
+    t.deepEqual([0, 1, 2].map(cur), [true, false, true], "undo 1b");
     s.undo();
-    t.equal(s._ops.size(), 6);
+    t.equal(s._storage.size(), 6);
     t.deepEqual([0, 1, 2].map(cur), [false, false, true], "undo 2");
     s.undo();
-    t.equal(s._ops.size(),  4);
+    t.equal(s._storage.size(),  4);
     t.deepEqual([0, 1, 2].map(cur), [false, true, true], "undo 3");
     s.undo();
-    t.equal(s._ops.size(), 2);
+    t.equal(s._storage.size(), 2);
     t.deepEqual([0, 1, 2].map(cur), [false, true, false], "undo 4");
     s.undo();
-    t.equal(s._ops.size(), 0);
+    t.equal(s._storage.size(), 0);
     t.deepEqual([0, 1, 2].map(cur), [false, false, false], "undo 5");
     s.undo();
-    t.equal(s._ops.size(), 0);
+    t.equal(s._storage.size(), 0);
     t.deepEqual([0, 1, 2].map(cur), [false, false, false], "undo 5 again");
     s.undo();
-    t.equal(s._ops.size(), 0);
+    t.equal(s._storage.size(), 0);
   });
 
   test ("Redo tests", function (t) {
@@ -2174,7 +2443,7 @@ The functions of a selection geometry are:
     t.deepEqual([0, 1, 2].map(cur), [true, false, false], "redo 5 again");
 
     s = new M.SelectionState(new G.OrderedGeometry(20));
-    s.shiftClick([1]);
+    s.shiftClick(1);
     t.deepEqual([0, 1, 2].map(cur), [false, true, false], "redo A1");
     s.cmdClick(2);
     t.deepEqual([0, 1, 2].map(cur), [false, true, true], "redo A2");
@@ -2192,71 +2461,71 @@ The functions of a selection geometry are:
     var s = new M.SelectionState(new G.OrderedGeometry(20), function(){}, false, 1);
     function cur(i) { return s.isSelected(i); }
     s.redo();
-    t.equal(s._ops.size(), 0, "");
+    t.equal(s._storage.size(), 0, "");
     s.undo();
-    t.equal(s._ops.size(), 0, "");
+    t.equal(s._storage.size(), 0, "");
     s.redo();
-    t.equal(s._ops.size(), 0, "");
+    t.equal(s._storage.size(), 0, "");
     s.redo();
-    t.equal(s._ops.size(), 0, "");
+    t.equal(s._storage.size(), 0, "");
     s.cmdClick(1); 
-    t.equal(s._ops.size(), 2, "min undo 0");
+    t.equal(s._storage.size(), 2, "min undo 0");
     t.deepEqual([0, 1, 2].map(cur), [false, true, false], "");
     s.undo();
-    t.equal(s._ops.size(), 0, "min undo 1");
+    t.equal(s._storage.size(), 0, "min undo 1");
     t.deepEqual([0, 1, 2].map(cur), [false, false, false], "");
     s.redo();
-    t.equal(s._ops.size(), 2, "min undo 2");
+    t.equal(s._storage.size(), 2, "min undo 2");
     t.deepEqual([0, 1, 2].map(cur), [false, true, false], "");
     s.redo();
-    t.equal(s._ops.size(), 2, "min undo 2b");
+    t.equal(s._storage.size(), 2, "min undo 2b");
     s.cmdClick(2); 
-    t.equal(s._ops.size(), 2, "min undo 3");
+    t.equal(s._storage.size(), 2, "min undo 3");
     t.deepEqual([0, 1, 2].map(cur), [false, true, true], "");
     s.undo();
-    t.equal(s._ops.size(), 0, "min undo 4");
+    t.equal(s._storage.size(), 0, "min undo 4");
     t.deepEqual([0, 1, 2].map(cur), [false, true, false], "");
     s.redo();
-    t.equal(s._ops.size(), 2, "min undo 5");
+    t.equal(s._storage.size(), 2, "min undo 5");
     t.deepEqual([0, 1, 2].map(cur), [false, true, true], "");
     s.redo();
-    t.equal(s._ops.size(), 2, "min undo 6");
+    t.equal(s._storage.size(), 2, "min undo 6");
     t.deepEqual([0, 1, 2].map(cur), [false, true, true], "");
 
     s = new M.SelectionState(new G.OrderedGeometry(20), function(){}, false, 3);
     s.cmdClick(1); 
-    t.equal(s._ops.size(), 2, "redostack 1a");
+    t.equal(s._storage.size(), 2, "redostack 1a");
     t.equal(s._redoStack.length, 0, "redostack 1b");
     s.undo();
-    t.equal(s._ops.size(), 0, "redostack 2a");
+    t.equal(s._storage.size(), 0, "redostack 2a");
     t.equal(s._redoStack.length, 2, "redostack 2b");
     s.cmdClick(2); 
-    t.equal(s._ops.size(), 2, "redostack 3a");
+    t.equal(s._storage.size(), 2, "redostack 3a");
     t.equal(s._redoStack.length, 2, "redostack 3b");
     s.undo(); 
-    t.equal(s._ops.size(), 0, "redostack 4a");
+    t.equal(s._storage.size(), 0, "redostack 4a");
     t.equal(s._redoStack.length, 4, "redostack 4b");
     s.cmdClick(3); 
-    t.equal(s._ops.size(), 2, "redostack 5a"); 
+    t.equal(s._storage.size(), 2, "redostack 5a"); 
     t.equal(s._redoStack.length, 4, "redostack 5b");
     s.cmdClick(4); 
-    t.equal(s._ops.size(), 4, "redostack 6a");
+    t.equal(s._storage.size(), 4, "redostack 6a");
     t.equal(s._redoStack.length, 4, "redostack 6b");
     s.cmdClick(5);     
     s.cmdClick(6); 
-    t.equal(s._ops.size(), 6, "redostack 7a"); // should be 8, but we are at limit
+    t.equal(s._storage.size(), 6, "redostack 7a"); // should be 8, but we are at limit
     t.equal(s._redoStack.length, 4, "redostack 7b");
     s.undo();
-    t.equal(s._ops.size(), 4, "redostack 8a"); 
+    t.equal(s._storage.size(), 4, "redostack 8a"); 
     t.equal(s._redoStack.length, 6, "redostack 8b"); 
     s.undo();
-    t.equal(s._ops.size(), 2, "redostack 9a");
+    t.equal(s._storage.size(), 2, "redostack 9a");
     t.equal(s._redoStack.length, 6, "redostack 9b"); // at limit
     s.click(1);
-    t.equal(s._ops.size(), 4, "redostack 10a"); 
+    t.equal(s._storage.size(), 4, "redostack 10a"); 
     t.equal(s._redoStack.length, 6, "redostack 10b"); 
     s.redo();
-    t.equal(s._ops.size(), 6, "redostack 11a"); 
+    t.equal(s._storage.size(), 6, "redostack 11a"); 
     t.equal(s._redoStack.length, 4, "redostack 11b"); 
   });
 
@@ -2266,109 +2535,97 @@ The functions of a selection geometry are:
     var M = multiselect;
     var G = multiselect_ordered_geometries;
 
-    var D = M.detail;
     var s = new M.SelectionState(new G.OrderedGeometry(20), 
-                                 function(c) { changed = c; }, true);
+                                 function(m, c) { changed = c; }, true);
 
     s.click(1);
-    t.ok(D.equalKeys(changed, dom(1)), "tracking 1");
+    t.ok(equalKeys(changed, dom(1)), "tracking 1");
     t.equal(changed.get(1), true, "tracking 1b");
     changed = null;
     s.click(1); // should be a nop, so refresh not called
     t.equal(changed, null, "tracking 2");
     s.cmdClick(1);
-    t.ok(D.equalKeys(changed, dom(1)), "tracking 3");
+    t.ok(equalKeys(changed, dom(1)), "tracking 3");
     t.equal(changed.get(1), false);
     s.click(2);
-    t.ok(D.equalKeys(changed, dom(2)), "tracking 4");
+    t.ok(equalKeys(changed, dom(2)), "tracking 4");
     t.equal(changed.get(2), true);
     s.shiftClick(4); s._flush();
-    t.ok(D.equalKeys(changed, dom(3, 4)), "tracking 5");
+    t.ok(equalKeys(changed, dom(3, 4)), "tracking 5");
     t.equal(changed.get(3), true);
     t.equal(changed.get(4), true);
   });
 
   test ("Predicate selection tests", function (t) {
 
-    var M = multiselect, D = M.detail;
+    var M = multiselect;
     var G = multiselect_ordered_geometries;
 
     var s = new M.SelectionState(new G.OrderedGeometry(20), function() {});
     function cur(i) { return s.isSelected(i); }
 
-    s.filter(function (i) { return i === 1 || i === 3; });
+    s.predicateSelect(function (i) { return i === 1 || i === 3; });
     t.deepEqual([0, 1, 2, 3].map(cur), [false, true, false, true], "");
-    s.filter(function (i) { return i === 1 || i === 2; });
+    s.predicateSelect(function (i) { return i === 1 || i === 2; });
     t.deepEqual([0, 1, 2, 3].map(cur), [false, true, true, false], "");
-    s.filter(function (i) { return true; });
+    s.predicateSelect(function (i) { return true; });
     t.deepEqual([0, 1, 2, 3].map(cur), [true, true, true, true], "");
-    s.filter(function (i) { return i === 1 || i === 2; });
+    s.predicateSelect(function (i) { return i === 1 || i === 2; });
     s.commit();
-    s.filter(function (i) { return i === 0; });
+    s.predicateSelect(function (i) { return i === 0; });
     t.deepEqual([0, 1, 2, 3].map(cur), [true, true, true, false], "");
 
     var changed;
     var s = new M.SelectionState(new G.OrderedGeometry(20), 
-                                 function(c) { changed = c; }, true);
-    s.filter(function (i) { return i === 1 || i === 3; }, true); // [1, 3] selected
-    t.equal(changed.size, 2, "filter with change tracking 1");
+                                 function(m, c) { changed = c; }, true);
+    s.predicateSelect(function (i) { return i === 1 || i === 3; }, true); // [1, 3] selected
+    t.equal(changed.size, 2, "predicate-select with change tracking 1");
     t.ok(changed.get(1) === true && changed.get(3) === true);
     t.equal(cur(0), false, "a");
     t.equal(cur(1), true, "b");
     t.equal(cur(2), false, "c");
     t.equal(cur(3), true, "d");
-    s.filter(function (i) { return i === 1 || i === 2; }, false); // [3] selected
+    s.predicateSelect(function (i) { return i === 1 || i === 2; }, false); // [3] selected
     // this commits, since selection mode changes
     t.equal(cur(0), false, "a");
     t.equal(cur(1), false, "b");
     t.equal(cur(2), false, "c");
     t.equal(cur(3), true, "d");
 
-    t.equal(changed.size, 1, "filter with change tracking 2");
+    t.equal(changed.size, 1, "predicate-select with change tracking 2");
     t.equal(changed.get(0), undefined);
     t.equal(changed.get(1), false);
     t.equal(changed.get(2), undefined);
     t.equal(changed.get(3), undefined);
-    s.filter(function (i) { return true; }, false); // [] selected
+    s.predicateSelect(function (i) { return true; }, false); // [] selected
     t.equal(changed.size, 1); 
     t.equal(changed.get(3), false);
     // test commit:
-    s.filter(function (i) { return i === 1 || i === 3; }, true); // [1, 3] selected
+    s.predicateSelect(function (i) { return i === 1 || i === 3; }, true); // [1, 3] selected
     t.equal(changed.size, 2, "commit tests");
     t.ok(changed.get(1) === true && changed.get(3) === true);    
     s.commit();
-    s.filter(function (i) { return i === 1 || i === 2; }, true); // [1, 2, 3] selected
+    s.predicateSelect(function (i) { return i === 1 || i === 2; }, true); // [1, 2, 3] selected
     t.equal(changed.size, 1);
     t.ok(changed.get(2) === true);    
   });
 
-#+END_SRC
-* COMMENT Utilities
-  :PROPERTIES:
-  :CUSTOM_ID: sec-utilities
-  :END:
+  test ("remove index tests", function (t) {
 
-The ~delay~ function can be used to introduce a 
-delay in a promise chain. The parameter ~t~ is 
-the duration of the delay in milliseconds; if ~t~ is
-not specified, the delay is 0, but the function
-is nevertheless scheduled ``at the next tick''.
+    var M = multiselect;
+    var G = multiselect_ordered_geometries;
 
-#+NAME: general-utilities-delay
-#+BEGIN_SRC js
-  function delay(f, t) {
-    if (t === undefined) t = 0;
-    return function (c) {
-      return new Promise( function (resolve, reject) {
-        setTimeout(function () { resolve(f(c)); }, t);
-      });
-    };
-  }
-#+END_SRC
+    var s = new M.SelectionState(new G.OrderedGeometry(20));
+    function cur(i) { return s.isSelected(i); }
 
-#+NAME: general-utilities
-#+BEGIN_SRC js :exports none :noweb yes
-<<general-utilities-delay>>
+    s.cmdClick(1);
+    s.cmdClick(3);
+    s.cmdClick(4);
+    t.deepEqual([0, 1, 2, 3, 4].map(cur), [false, true, false, true, true], "selection removeIndex 1");
+    s.modifyStorage({remove: true, value: 1});
+    t.deepEqual([0, 1, 2, 3, 4].map(cur), [false, false, false, true, true], "selection removeIndex 2");
+  });
+
 #+END_SRC
 
 * Events
@@ -2422,12 +2679,9 @@ The public names exported from the library are as follows.
 #+BEGIN_SRC js 
   exports.SelectionState = SelectionState;
 
-  // these names are imported from default_geometry.js
   exports.DefaultGeometry = DefaultGeometry;
   exports.anchor = anchor;
   exports.activeEnd = activeEnd;
-
-  exports.makeEmptyMap = makeEmptyMap;
 
   exports.UP = UP; 
   exports.DOWN = DOWN; 
@@ -2446,36 +2700,7 @@ The public names exported from the library are as follows.
   exports.SHIFT_OPT = M_SHIFT_OPT;
 #+END_SRC
 
-In addition, the following names are exported to be used by tests
-under the ~detail~ ``namespace'':
-
-#+NAME: exports-detail
-#+BEGIN_SRC js 
-  exports.detail = {};
-  exports.detail.tt = tt;
-  exports.detail.ff = ff;
-  exports.detail.not = not;
-  exports.detail.id = id;
-
-  exports.detail.makeOp = makeOp;
-
-  // exports.detail.makeEmptySet = makeEmptySet;
-
-  exports.detail.makeSelectionMapping = makeSelectionMapping;
-  exports.detail.makeOpComposition = makeOpComposition;
-
-  exports.detail.equalKeys = equalKeys;
-  exports.detail.isEmpty = isEmpty;
-#+END_SRC
-
 * Tangle                                                           :noexport:
-
-#+NAME: generated-banner
-#+BEGIN_SRC js :exports none
-/////////////////////////////////////////
-// This file is generated, do not edit //
-/////////////////////////////////////////
-#+END_SRC
 
 #+BEGIN_SRC html :exports none :tangle ../test/testindex.html :noweb yes :padline no 
 <!DOCTYPE html>
@@ -2499,24 +2724,42 @@ under the ~detail~ ``namespace'':
 #+BEGIN_SRC js :exports none :tangle ../test/tests.js :noweb yes :padline no 
 var test = QUnit.test;
 
-// we include the contets of default geometry, rather than require it
-// so that testing does not have to go through browserify
-<<include-default-geometry>>
+// including some private functions in the library so
+// that they can be tested
+<<selection-functions>>
+<<primitive-selection-operation>>
+<<selection-mapping>>
+
+<<set-and-map-functions>>
+<<map-storage>>
+
+<<default-geometry>>
+<<geometry-directions>>
+<<geometry-utilities>>
 
 <<test-utilities>>
 
 <<utilities-tests>>
 <<baking-tests>>
 <<primitive-selection-operation-tests>>
-<<op-composition-tests>>
-<<op-remove-index-tests>>
+<<map-storage-tests>>
 <<selection-state-tests>>
 #+END_SRC
 
 #+BEGIN_SRC js :exports none :tangle ../js/multiselect.js :noweb yes :padline no
-  <<generated-banner>>
+  // This file is generated, do not edit
+#+END_SRC
 
-  <<import-default-geometry>>
+#+BEGIN_SRC js :exports none :tangle ../js/multiselect.js :noweb yes :padline no
+  // This file is generated, do not edit
+
+  // -------------------------------------------------------------------
+  // The default geometry
+  // -------------------------------------------------------------------
+  <<default-geometry>>
+  <<geometry-directions>>
+  <<geometry-utilities>>
+
   // -------------------------------------------------------------------
   // utilities
   // -------------------------------------------------------------------
@@ -2540,33 +2783,34 @@ var test = QUnit.test;
   // -------------------------------------------------------------------
   // composition of primitive selection operations
   // -------------------------------------------------------------------
-  <<op-composition>>
+  <<set-and-map-functions>>
+  <<map-storage>>
 
   // -------------------------------------------------------------------
   // selection state
   // -------------------------------------------------------------------
   <<selection-state>>
   <<selection-state-reset-path>>
-  <<selection-state-reset>>
   <<selection-state-is-selected>>
   <<selection-state-selected>>
   <<selection-state-click>>
+  <<selection-state-empty-tracking-set>>
+  <<selection-state-_modify-path>>
+  <<selection-state-modify-path>>
   <<click-is-nop>>
   <<selection-state-cmd-click>>
   <<cmd-click-is-nop>>
   <<selection-state-shift-click>>
-  <<mk-delayed-shift-click-command>>
-  <<selection-state-call-selection-domain>>
-  <<selection-state-set-path>>
+  <<make-delayed-shift-click-command>>
   <<selection-state-flush>>
   <<selection-state-on-selected>>
   <<selection-state-dummy-op-functions>>
   <<selection-state-bake>>
   <<selection-state-undo-redo>>
-  <<selection-state-set-path>>
-  <<selection-state-filter>>
+  <<selection-state-predicate-select>>
   <<selection-state-commit>>
   <<selection-state-set-geometry>>
+  <<selection-state-modify-storage>>
   <<selection-state-getters>>
   <<selection-state-space-functions>>
   <<selection-state-arrow-functions>>
@@ -2576,41 +2820,6 @@ var test = QUnit.test;
   // exports
   // -------------------------------------------------------------------
   <<exports>>
-  <<exports-detail>>
-#+END_SRC
-
-#+NAME: default-geometry-js-contents
-#+BEGIN_SRC js :exports none :tangle ../js/default_geometry.js :noweb yes :padline no
-  <<generated-banner>>
-
-  // -------------------------------------------------------------------
-  // selection geometries
-  // -------------------------------------------------------------------
-
-  <<default-geometry>>
-
-  <<geometry-directions>>
-
-  <<geometry-utilities>>
-
-  exports.DefaultGeometry = DefaultGeometry;
-  exports.anchor = anchor;
-  exports.activeEnd = activeEnd;
-
-  exports.makeEmptyMap = makeEmptyMap;
-  exports.makeEmptySet = makeEmptySet;
-
-  exports.isEmpty = isEmpty;
-  exports.isSingleton = isSingleton;
-  exports.firstKey = firstKey;
-  exports.copySet = copySet;
-  exports.copyMap = copyMap;
-
-  exports.UP = UP; 
-  exports.DOWN = DOWN; 
-  exports.LEFT = LEFT; 
-  exports.RIGHT = RIGHT;
-  exports.NO_DIRECTION = NO_DIRECTION;
 #+END_SRC
 
 
@@ -2620,7 +2829,7 @@ var test = QUnit.test;
 #+BEGIN_SRC js :exports none
   // generate a property map that maps the labels given as arguments to true
   function dom(args) {
-    var d = multiselect.makeEmptyMap();
+    var d = new Map();
     for (var i in arguments) { d.set(arguments[i], true); }
     return d;
   }
@@ -2637,7 +2846,6 @@ var test = QUnit.test;
     return true;
   }
 #+END_SRC
-
 
 * File local variables                                     :ARCHIVE:noexport:
   
@@ -2657,8 +2865,8 @@ var test = QUnit.test;
 #  LocalWords:  xhtml src overline monospace indexable multi GUIs dom
 #  LocalWords:  newcommand mathsf selset mathbf inds subseteq mapsto
 #  LocalWords:  notin indices ldots circ mathit selectionDomain FIXME
-#  LocalWords:  EcmaScript js API nodejs makeEmptySet makeEmptyMap ok
-#  LocalWords:  isEmpty isSingleton firstKey equalKeys setUnion noweb
+#  LocalWords:  EcmaScript js API nodejs makeEmptySet ok
+#  LocalWords:  isEmpty isSingleton firstKey equalKeys noweb
 #  LocalWords:  setSymmetricDifference nd bool tt constness fn func
 #  LocalWords:  makeSelectionMapping multiselect arrayEquals makeOp
 #  LocalWords:  makeOpComposition ith encodings eval cdots mathtt sel
@@ -2669,16 +2877,16 @@ var test = QUnit.test;
 #  LocalWords:  cmd onSelectedIndex tmp numberOfOps vps extendPath ss
 #  LocalWords:  onSelected onElement emptyPairOnTop queuedCommand dir
 #  LocalWords:  commandQueue opertationQueue scheduleKeepLast pred hs
-#  LocalWords:  getters acquireCursor shiftSpace VerticalCS kbd dg mk
+#  LocalWords:  getters acquireCursor shiftSpace VerticalCS kbd dg make
 #  LocalWords:  cmdSpace nop deepEqual DefaultGeometry mpoint typeof
 #  LocalWords:  vpoint pre defaultPath subsequence activeEnd keypress
 #  LocalWords:  defaultCursor upto boundToElement resizing init undos
 #  LocalWords:  redostack setTimeout setProperty namespace padline
 #  LocalWords:  charset utf qunit QUnit reposition args stateful oldJ
-#  LocalWords:  SETUPFILE copySet forEach copyMap leftValue opsStatus
+#  LocalWords:  SETUPFILE forEach leftValue opsStatus
 #  LocalWords:  mapSymmetricDifference rightValue const redoable pdf
 #  LocalWords:  selectable clickIsNop cmdClickIsNop selmode draggable
-#  LocalWords:  mkDelayedShiftClickCommand selectionGeometry resize
-#  LocalWords:  unselected resetPath valueOrDefault noCursor evt
+#  LocalWords:  makeDelayedShiftClickCommand selectionGeometry resize
+#  LocalWords:  unselected resetPath or_default noCursor evt
 #  LocalWords:  modifierKeys shiftKey isCmdKey altKey metaKey ctrlKey
 #  LocalWords:  javascript
